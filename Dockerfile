@@ -10,7 +10,8 @@ RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o bin/router
 
 
 
-FROM quay.io/skupper/skupper-router:2.6.0
+FROM quay.io/skupper/skupper-router:3.0.1
+COPY LICENSE /licenses/LICENSE
 COPY --from=go-builder /go/src/github.com/datasance/router/bin/router /home/skrouterd/bin/router
 COPY scripts/launch.sh /home/skrouterd/bin/launch.sh
 
