@@ -329,13 +329,23 @@ func (router *Router) GetRouterConfig() string {
 
 	sslProfilesConfig := ""
 	for _, sslProfile := range router.sslProfiles {
-		sslProfilesConfig += fmt.Sprintf(
-			"\\nsslProfile {\\n  name: %s\\n  caCertFile: /home/runner/%s-cert/ca.crt\\n  certFile: /home/runner/%s-cert/tls.crt\\n  privateKeyFile: /home/runner/%s-cert/tls.key\\n}",
-			sslProfileName(sslProfile),
-			sslProfileName(sslProfile),
-			sslProfileName(sslProfile),
-			sslProfileName(sslProfile),
-		)
+		if sslProfile.CaCert == "" {
+			sslProfilesConfig += fmt.Sprintf(
+				"\\nsslProfile {\\n  name: %s\\n  caCertFile: /home/runner/%s-cert/tls.crt\\n  certFile: /home/runner/%s-cert/tls.crt\\n  privateKeyFile: /home/runner/%s-cert/tls.key\\n}",
+				sslProfileName(sslProfile),
+				sslProfileName(sslProfile),
+				sslProfileName(sslProfile),
+				sslProfileName(sslProfile),
+			)
+		} else {
+			sslProfilesConfig += fmt.Sprintf(
+				"\\nsslProfile {\\n  name: %s\\n  caCertFile: /home/runner/%s-cert/ca.crt\\n  certFile: /home/runner/%s-cert/tls.crt\\n  privateKeyFile: /home/runner/%s-cert/tls.key\\n}",
+				sslProfileName(sslProfile),
+				sslProfileName(sslProfile),
+				sslProfileName(sslProfile),
+				sslProfileName(sslProfile),
+			)
+		}
 	}
 
 	return fmt.Sprintf(
