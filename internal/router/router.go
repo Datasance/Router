@@ -15,34 +15,19 @@ package router
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
-	"github.com/datasance/router/internal/exec"
-	"io/ioutil"
+	// "io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
+	"time"
+
+	"github.com/datasance/router/internal/exec"
+	"github.com/datasance/router/internal/qdr"
 )
 
-type Listener struct {
-	Role             string `json:"role"`
-	Host             string `json:"host"`
-	Port             int    `json:"port"`
-	SaslMechanisms   string `json:"saslMechanisms"`
-	AuthenticatePeer string `json:"authenticatePeer"`
-	SslProfile       string `json:"sslProfile"`
-	RequireSsl       string `json:"requireSsl"`
-}
-
-type Connector struct {
-	Name           string `json:"name"`
-	Role           string `json:"role"`
-	Host           string `json:"host"`
-	Port           int    `json:"port"`
-	SaslMechanisms string `json:"saslMechanisms"`
-	SslProfile     string `json:"sslProfile"`
-}
-
-type SslProfile struct {
+type IncomingSslProfile struct {
 	Name    string `json:"name"`
 	TlsCert string `json:"tlsCert"`
 	TlsKey  string `json:"tlsKey"`
@@ -50,333 +35,257 @@ type SslProfile struct {
 }
 
 type Config struct {
-	Mode        string       `json:"mode"`
-	Name        string       `json:"id"`
-	Listeners   []Listener   `json:"listeners"`
-	Connectors  []Connector  `json:"connectors"`
-	SslProfiles []SslProfile `json:"sslProfiles"`
+	Metadata           qdr.RouterMetadata
+	SslProfiles        map[string]IncomingSslProfile
+	ConvertedProfiles  map[string]qdr.SslProfile
+	Listeners          map[string]qdr.Listener
+	Connectors         map[string]qdr.Connector
+	Addresses          map[string]qdr.Address
+	LogConfig          map[string]qdr.LogConfig
+	SiteConfig         *qdr.SiteConfig
+	Bridges            qdr.BridgeConfig
 }
 
 type Router struct {
-	listeners   map[string]Listener
-	connectors  map[string]Connector
-	sslProfiles map[string]SslProfile
-	Config      *Config
+	Config *Config
 }
 
-func skmanage(args []string) {
-	exitChannel := make(chan error)
-	go exec.Run(exitChannel, "skmanage", args, []string{})
-	for {
-		select {
-		case <-exitChannel:
-			return
-		}
-	}
-}
-
-func listenerName(listener Listener) string {
-	return fmt.Sprintf("listener-%s-%s-%d", listener.Role, listener.Host, listener.Port)
-}
-
-func connectorName(connector Connector) string {
-	return fmt.Sprintf("connector-%s-%s-%s-%d", connector.Name, connector.Role, connector.Host, connector.Port)
-}
-
-func sslProfileName(sslProfile SslProfile) string {
-	return fmt.Sprintf("%s", sslProfile.Name)
-}
-
-func deleteEntity(name string) {
-	args := []string{
-		"delete",
-		fmt.Sprintf("--name=%s", name),
-	}
-	skmanage(args)
-}
-
-func (router *Router) createListener(listener Listener) {
-	if listener.SaslMechanisms == "" {
-		listener.SaslMechanisms = "ANONYMOUS"
-	}
-	if listener.AuthenticatePeer == "" {
-		listener.AuthenticatePeer = "no"
-	}
-	if listener.RequireSsl == "" {
-		listener.RequireSsl = "no"
-	}
-
-	args := []string{
-		"create",
-		"--type=listener",
-		fmt.Sprintf("port=%d", listener.Port),
-		fmt.Sprintf("role=%s", listener.Role),
-		fmt.Sprintf("host=%s", listener.Host),
-		fmt.Sprintf("name=%s", listenerName(listener)),
-	}
-
-	if listener.SaslMechanisms != "" {
-		args = append(args, fmt.Sprintf("sslProfile=%s", listener.SaslMechanisms))
-	}
-
-	if listener.AuthenticatePeer != "" {
-		args = append(args, fmt.Sprintf("requireSsl=%s", listener.AuthenticatePeer))
-	}
-
-	if listener.SslProfile != "" {
-		args = append(args, fmt.Sprintf("sslProfile=%s", listener.SslProfile))
-	}
-
-	if listener.RequireSsl != "" {
-		args = append(args, fmt.Sprintf("requireSsl=%s", listener.RequireSsl))
-	}
-
-	skmanage(args)
-	router.listeners[listenerName(listener)] = listener
-}
-
-func (router *Router) createConnector(connector Connector) {
-	if connector.SaslMechanisms == "" {
-		connector.SaslMechanisms = "ANONYMOUS"
-	}
-
-	args := []string{
-		"create",
-		"--type=connector",
-		fmt.Sprintf("port=%d", connector.Port),
-		fmt.Sprintf("role=%s", connector.Role),
-		fmt.Sprintf("host=%s", connector.Host),
-		fmt.Sprintf("name=%s", connectorName(connector)),
-	}
-
-	if connector.SaslMechanisms != "" {
-		args = append(args, fmt.Sprintf("sslProfile=%s", connector.SaslMechanisms))
-	}
-
-	if connector.SslProfile != "" {
-		args = append(args, fmt.Sprintf("sslProfile=%s", connector.SslProfile))
-	}
-
-	skmanage(args)
-	router.connectors[connectorName(connector)] = connector
-}
-
-func (router *Router) deleteListener(listener Listener) {
-	deleteEntity(listenerName(listener))
-	delete(router.listeners, listenerName(listener))
-}
-
-func (router *Router) deleteConnector(connector Connector) {
-	deleteEntity(connectorName(connector))
-	delete(router.connectors, connectorName(connector))
-}
-
-func (router *Router) handleTLSFiles(sslProfile SslProfile) error {
-	certDir := fmt.Sprintf("/home/runner/%s-cert", sslProfile.Name)
-	log.Printf("Creating directory: %s", certDir)
-	caCert := sslProfile.CaCert
-	tlsCert := sslProfile.TlsCert
-	tlsKey := sslProfile.TlsKey
+func (router *Router) handleTLSFiles(sslProfile IncomingSslProfile) (qdr.SslProfile, error) {
+	certDir := fmt.Sprintf("/etc/skupper-router/certs/%s", sslProfile.Name)
 	if err := os.MkdirAll(certDir, 0755); err != nil {
-		return fmt.Errorf("failed to create config directory: %v", err)
+		return qdr.SslProfile{}, fmt.Errorf("failed to create cert directory: %v", err)
 	}
-	log.Printf("Handling TLS files in directory: %s", certDir)
 
-	if caCert != "" {
-		log.Printf("Processing CaCert for %s", sslProfile.Name)
+	// Create a new qdr.SslProfile with the name
+	profile := qdr.SslProfile{
+		Name: sslProfile.Name,
+	}
+
+	// Convert base64 encoded strings to files and update the profile
+	if sslProfile.TlsCert != "" {
+		certPath := filepath.Join(certDir, "tls.crt")
+		if err := decodeCertToFile(sslProfile.TlsCert, certPath); err != nil {
+			return qdr.SslProfile{}, fmt.Errorf("failed to write TLS certificate: %v", err)
+		}
+		profile.CertFile = certPath
+	}
+	if sslProfile.TlsKey != "" {
+		keyPath := filepath.Join(certDir, "tls.key")
+		if err := decodeCertToFile(sslProfile.TlsKey, keyPath); err != nil {
+			return qdr.SslProfile{}, fmt.Errorf("failed to write TLS key: %v", err)
+		}
+		profile.PrivateKeyFile = keyPath
+	}
+	if sslProfile.CaCert != "" {
 		caPath := filepath.Join(certDir, "ca.crt")
 		if err := decodeCertToFile(sslProfile.CaCert, caPath); err != nil {
-			return fmt.Errorf("failed to decode CaCert: %v", err)
+			return qdr.SslProfile{}, fmt.Errorf("failed to write CA certificate: %v", err)
 		}
+		profile.CaCertFile = caPath
 	}
 
-	if tlsCert != "" {
-		log.Printf("Processing TlsCert for %s", sslProfile.Name)
-		tlsCertPath := filepath.Join(certDir, "tls.crt")
-		if err := decodeCertToFile(sslProfile.TlsCert, tlsCertPath); err != nil {
-			return fmt.Errorf("failed to decode TlsCert: %v", err)
-		}
-	}
-
-	if tlsKey != "" {
-		log.Printf("Processing TlsKey for %s", sslProfile.Name)
-		tlsKeyPath := filepath.Join(certDir, "tls.key")
-		if err := decodeCertToFile(sslProfile.TlsKey, tlsKeyPath); err != nil {
-			return fmt.Errorf("failed to decode TlsKey: %v", err)
-		}
-	}
-
-	return nil
+	return profile, nil
 }
 
 func decodeCertToFile(certString string, outputPath string) error {
-	log.Printf("Starting decodeCertToFile for outputPath: %s", outputPath)
-
-	// Decode the base64 data
-	decodedData, err := base64.StdEncoding.DecodeString(certString)
+	decoded, err := base64.StdEncoding.DecodeString(certString)
 	if err != nil {
-		log.Fatalf("Failed to decode base64 data: %v", err)
+		return fmt.Errorf("failed to decode certificate: %v", err)
+	}
+	return os.WriteFile(outputPath, decoded, 0644)
+}
+
+func (router *Router) UpdateRouter(newConfig *Config) error {
+	// Handle SSL profiles first and convert profiles
+	convertedProfiles := make(map[string]qdr.SslProfile)
+	for name, profile := range newConfig.SslProfiles {
+		convertedProfile, err := router.handleTLSFiles(profile)
+		if err != nil {
+			return fmt.Errorf("failed to handle TLS files: %v", err)
+		}
+		convertedProfiles[name] = convertedProfile
+	}
+	newConfig.ConvertedProfiles = convertedProfiles
+
+	// Create agent pool and get client
+	agentPool := qdr.NewAgentPool("amqp://localhost:5672", nil)
+	client, err := agentPool.Get()
+	if err != nil {
+		return fmt.Errorf("failed to get client from pool: %v", err)
 	}
 
-	// Write the decoded data to the file
-	if err := ioutil.WriteFile(outputPath, decodedData, 0644); err != nil {
-		log.Printf("Failed to write PEM data to file %s: %v", outputPath, err)
-		return fmt.Errorf("failed to write PEM data to file: %v", err)
+	// Get current bridge configuration
+	currentBridgeConfig, err := client.GetLocalBridgeConfig()
+	if err != nil {
+		return fmt.Errorf("failed to get current bridge config: %v", err)
 	}
 
-	log.Printf("Successfully wrote PEM file to: %s", outputPath)
+	// Calculate differences using qdr's built-in Difference method
+	changes := currentBridgeConfig.Difference(&newConfig.Bridges)
+
+	// Update via AMQP management using qdr's built-in function
+	if err := client.UpdateLocalBridgeConfig(changes); err != nil {
+		return fmt.Errorf("failed to update bridge config: %v", err)
+	}
+
+	// Update the configuration file with the new TLS file paths
+	configJSON := router.GetRouterConfig()
+	configPath := "/etc/skupper-router/skupper-router.json"
+	if err := os.WriteFile(configPath, []byte(configJSON), 0644); err != nil {
+		return fmt.Errorf("failed to write router configuration: %v", err)
+	}
+
+	// Update the in-memory configuration
+	router.Config = newConfig
+
+	// Return client to the pool instead of closing it
+	if client != nil {
+		agentPool.Put(client)
+	}
+
 	return nil
 }
 
-func (router *Router) UpdateRouter(newConfig *Config) {
-	newListeners := make(map[string]Listener)
-	newConnectors := make(map[string]Connector)
-
-	for _, listener := range newConfig.Listeners {
-		newListeners[listenerName(listener)] = listener
-		if _, ok := router.listeners[listenerName(listener)]; !ok {
-			router.createListener(listener)
-		}
-	}
-
-	for _, connector := range newConfig.Connectors {
-		newConnectors[connectorName(connector)] = connector
-		if _, ok := router.connectors[connectorName(connector)]; !ok {
-			router.createConnector(connector)
-		}
-	}
-
-	for _, sslProfile := range newConfig.SslProfiles {
-		if err := router.handleTLSFiles(sslProfile); err != nil {
-		}
-	}
-
-	for _, listener := range router.listeners {
-		if _, ok := newListeners[listenerName(listener)]; !ok {
-			router.deleteListener(listener)
-		}
-	}
-
-	for _, connector := range router.connectors {
-		if _, ok := newConnectors[connectorName(connector)]; !ok {
-			router.deleteConnector(connector)
-		}
-	}
-
-	router.Config = newConfig
-}
-
 func (router *Router) GetRouterConfig() string {
-	listenersConfig := ""
-	for _, listener := range router.listeners {
-		// Handle default values for listener fields
-		saslMechanisms := listener.SaslMechanisms
-		if saslMechanisms == "" {
-			saslMechanisms = "ANONYMOUS"
-		}
+	config := router.Config
+	configElements := [][]interface{}{}
 
-		authenticatePeer := listener.AuthenticatePeer
-		if authenticatePeer == "" {
-			authenticatePeer = "no"
-		}
+	// Add router metadata
+	configElements = append(configElements, []interface{}{
+		"router",
+		config.Metadata,
+	})
 
-		requireSsl := ""
-		if listener.RequireSsl != "" {
-			requireSsl = fmt.Sprintf("  requireSsl: %s\\n", listener.RequireSsl)
+	// Add SSL profiles with updated file paths
+	for _, profile := range config.ConvertedProfiles {
+		// Create a clean sslProfile entry for the config file
+		sslProfile := qdr.SslProfile{
+			Name:           profile.Name,
+			CertFile:       profile.CertFile,
+			PrivateKeyFile: profile.PrivateKeyFile,
+			CaCertFile:     profile.CaCertFile,
 		}
-
-		sslProfile := ""
-		if listener.SslProfile != "" {
-			sslProfile = fmt.Sprintf("  sslProfile: %s\\n", listener.SslProfile)
-		}
-
-		listenersConfig += fmt.Sprintf(
-			"\\nlistener {\\n  name: %s\\n  role: %s\\n  host: %s\\n  port: %d\\n  saslMechanisms: %s\\n  authenticatePeer: %s\\n%s%s}",
-			listenerName(listener),
-			listener.Role,
-			listener.Host,
-			listener.Port,
-			saslMechanisms,
-			authenticatePeer,
+		configElements = append(configElements, []interface{}{
+			"sslProfile",
 			sslProfile,
-			requireSsl,
-		)
+		})
 	}
 
-	connectorsConfig := ""
-	for _, connector := range router.connectors {
-		// Handle default values for connector fields
-		saslMechanisms := connector.SaslMechanisms
-		if saslMechanisms == "" {
-			saslMechanisms = "ANONYMOUS"
-		}
-
-		sslProfile := ""
-		if connector.SslProfile != "" {
-			sslProfile = fmt.Sprintf("  sslProfile: %s\\n", connector.SslProfile)
-		}
-
-		connectorsConfig += fmt.Sprintf(
-			"\\nconnector {\\n  name: %s\\n  host: %s\\n  port: %d\\n  role: %s\\n  saslMechanisms: %s\\n%s}",
-			connectorName(connector),
-			connector.Host,
-			connector.Port,
-			connector.Role,
-			saslMechanisms,
-			sslProfile,
-		)
+	// Add listeners
+	for _, listener := range config.Listeners {
+		configElements = append(configElements, []interface{}{
+			"listener",
+			listener,
+		})
 	}
 
-	sslProfilesConfig := ""
-	for _, sslProfile := range router.sslProfiles {
-		if sslProfile.CaCert == "" {
-			sslProfilesConfig += fmt.Sprintf(
-				"\\nsslProfile {\\n  name: %s\\n  caCertFile: /home/runner/%s-cert/tls.crt\\n  certFile: /home/runner/%s-cert/tls.crt\\n  privateKeyFile: /home/runner/%s-cert/tls.key\\n}",
-				sslProfileName(sslProfile),
-				sslProfileName(sslProfile),
-				sslProfileName(sslProfile),
-				sslProfileName(sslProfile),
-			)
-		} else {
-			sslProfilesConfig += fmt.Sprintf(
-				"\\nsslProfile {\\n  name: %s\\n  caCertFile: /home/runner/%s-cert/ca.crt\\n  certFile: /home/runner/%s-cert/tls.crt\\n  privateKeyFile: /home/runner/%s-cert/tls.key\\n}",
-				sslProfileName(sslProfile),
-				sslProfileName(sslProfile),
-				sslProfileName(sslProfile),
-				sslProfileName(sslProfile),
-			)
-		}
+	// Add connectors
+	for _, connector := range config.Connectors {
+		configElements = append(configElements, []interface{}{
+			"connector",
+			connector,
+		})
 	}
 
-	return fmt.Sprintf(
-		"router {\\n  mode: %s\\n  id: %s\\n  saslConfigDir: /etc/sasl2/\\n}%s%s%s",
-		router.Config.Mode,
-		router.Config.Name,
-		listenersConfig,
-		connectorsConfig,
-		sslProfilesConfig,
-	)
+	// Add TCP listeners
+	for _, listener := range config.Bridges.TcpListeners {
+		configElements = append(configElements, []interface{}{
+			"tcpListener",
+			listener,
+		})
+	}
+
+	// Add TCP connectors
+	for _, connector := range config.Bridges.TcpConnectors {
+		configElements = append(configElements, []interface{}{
+			"tcpConnector",
+			connector,
+		})
+	}
+
+	// Add addresses
+	for _, address := range config.Addresses {
+		configElements = append(configElements, []interface{}{
+			"address",
+			address,
+		})
+	}
+
+	// Add log configs
+	for _, logConfig := range config.LogConfig {
+		configElements = append(configElements, []interface{}{
+			"log",
+			logConfig,
+		})
+	}
+
+	// Add site config if present
+	if config.SiteConfig != nil {
+		configElements = append(configElements, []interface{}{
+			"site",
+			*config.SiteConfig,
+		})
+	}
+
+	// Marshal to JSON
+	data, err := json.MarshalIndent(configElements, "", "    ")
+	if err != nil {
+		log.Printf("Error marshaling router config: %v", err)
+		return ""
+	}
+
+	return string(data)
 }
 
 func (router *Router) StartRouter(ch chan<- error) {
-	router.listeners = make(map[string]Listener)
-	router.connectors = make(map[string]Connector)
-	router.sslProfiles = make(map[string]SslProfile)
-
-	for _, listener := range router.Config.Listeners {
-		router.listeners[listenerName(listener)] = listener
-	}
-
-	for _, connector := range router.Config.Connectors {
-		router.connectors[connectorName(connector)] = connector
-	}
-
-	for _, sslProfile := range router.Config.SslProfiles {
-		router.sslProfiles[sslProfileName(sslProfile)] = sslProfile
-		if err := router.handleTLSFiles(sslProfile); err != nil {
+	// Handle TLS files first and convert profiles
+	convertedProfiles := make(map[string]qdr.SslProfile)
+	for name, profile := range router.Config.SslProfiles {
+		convertedProfile, err := router.handleTLSFiles(profile)
+		if err != nil {
+			ch <- fmt.Errorf("failed to handle TLS files: %v", err)
+			return
 		}
+		convertedProfiles[name] = convertedProfile
+	}
+	router.Config.ConvertedProfiles = convertedProfiles
+
+	// Create initial configuration
+	config := router.GetRouterConfig()
+	configPath := "/etc/skupper-router/skupper-router.json"
+
+	// Ensure directory exists
+	if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
+		ch <- fmt.Errorf("failed to create configuration directory: %v", err)
+		return
 	}
 
-	routerConfig := router.GetRouterConfig()
-	exec.Run(ch, "/home/skrouterd/bin/launch.sh", []string{}, []string{"QDROUTERD_CONF=" + routerConfig})
+	// Write initial configuration
+	if err := os.WriteFile(configPath, []byte(config), 0644); err != nil {
+		ch <- fmt.Errorf("failed to write initial configuration: %v", err)
+		return
+	}
+
+	// Start router with JSON configuration
+	args := []string{
+		"--config", configPath,
+	}
+
+	exitChannel := make(chan error)
+	go exec.Run(exitChannel, "skrouterd", args, []string{})
+
+	// Monitor for configuration updates
+	go func() {
+		for {
+			select {
+			case err := <-exitChannel:
+				ch <- fmt.Errorf("router process exited with error: %v", err)
+				return
+			default:
+				// Check for configuration updates from ioFog-agent
+				// This should be implemented based on your ioFog-agent integration
+				time.Sleep(5 * time.Second)
+			}
+		}
+	}()
 }
