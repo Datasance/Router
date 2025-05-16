@@ -12,8 +12,8 @@ import (
 
 	amqp "github.com/interconnectedcloud/go-amqp"
 	"github.com/datasance/router/internal/resources/types"
-	"github.com/datasance/internal/config"
-	"github.com/datasance/internal/utils"
+	"github.com/datasance/router/internal/config"
+	"github.com/datasance/router/internal/utils"
 )
 
 type RouterNode struct {

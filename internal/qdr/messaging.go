@@ -6,7 +6,7 @@ import (
 
 	amqp "github.com/interconnectedcloud/go-amqp"
 
-	"github.com/datasance/internal/internal/messaging"
+	"github.com/datasance/router/internal/messaging"
 )
 
 type TlsConfigRetriever interface {

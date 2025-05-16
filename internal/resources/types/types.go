@@ -15,10 +15,11 @@ limitations under the License.
 package types
 
 import (
-	jsonencoding "encoding/json"
-	"fmt"
-	"strings"
 	"time"
+)
+
+const (
+	ENV_PLATFORM = "SKUPPER_PLATFORM"
 )
 
 const (
@@ -252,23 +253,23 @@ const (
 	SkupperServiceCertPrefix string = "skupper-tls-"
 )
 
-// RouterSpec is the specification of VAN network with router, controller and assembly
-type RouterSpec struct {
-	Name                  string          `json:"name,omitempty"`
-	Namespace             string          `json:"namespace,omitempty"`
-	AuthMode              ConsoleAuthMode `json:"authMode,omitempty"`
-	Transport             DeploymentSpec  `json:"transport,omitempty"`
-	ConfigSync            DeploymentSpec  `json:"configSync,omitempty"`
-	Controller            DeploymentSpec  `json:"controller,omitempty"`
-	Collector             DeploymentSpec  `json:"collector,omitempty"`
-	PrometheusServer      DeploymentSpec  `json:"prometheusServer,omitempty"`
-	RouterConfig          string          `json:"routerConfig,omitempty"`
-	Users                 []User          `json:"users,omitempty"`
-	CertAuthoritys        []CertAuthority `json:"certAuthoritys,omitempty"`
-	TransportCredentials  []Credential    `json:"transportCredentials,omitempty"`
-	ControllerCredentials []Credential    `json:"controllerCredentials,omitempty"`
-	PrometheusCredentials []Credential    `json:"prometheusCredentials,omitempty"`
-}
+// // RouterSpec is the specification of VAN network with router, controller and assembly
+// type RouterSpec struct {
+// 	Name                  string          `json:"name,omitempty"`
+// 	Namespace             string          `json:"namespace,omitempty"`
+// 	AuthMode              ConsoleAuthMode `json:"authMode,omitempty"`
+// 	Transport             DeploymentSpec  `json:"transport,omitempty"`
+// 	ConfigSync            DeploymentSpec  `json:"configSync,omitempty"`
+// 	Controller            DeploymentSpec  `json:"controller,omitempty"`
+// 	Collector             DeploymentSpec  `json:"collector,omitempty"`
+// 	PrometheusServer      DeploymentSpec  `json:"prometheusServer,omitempty"`
+// 	RouterConfig          string          `json:"routerConfig,omitempty"`
+// 	Users                 []User          `json:"users,omitempty"`
+// 	CertAuthoritys        []CertAuthority `json:"certAuthoritys,omitempty"`
+// 	TransportCredentials  []Credential    `json:"transportCredentials,omitempty"`
+// 	ControllerCredentials []Credential    `json:"controllerCredentials,omitempty"`
+// 	PrometheusCredentials []Credential    `json:"prometheusCredentials,omitempty"`
+// }
 
 
 // AssemblySpec for the links and connectors that form the VAN topology
