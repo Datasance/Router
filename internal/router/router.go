@@ -127,7 +127,7 @@ func decodeCertToFile(certString string, outputPath string) error {
 
 func (router *Router) UpdateRouter(newConfig *Config) error {
 	log.Printf("DEBUG: Starting router configuration update")
-	log.Printf("DEBUG: New configuration: %+v", newConfig)
+	// log.Printf("DEBUG: New configuration: %+v", newConfig)
 
 	// Handle SSL profiles first and convert profiles
 	convertedProfiles := make(map[string]qdr.SslProfile)
