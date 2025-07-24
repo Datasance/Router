@@ -21,6 +21,7 @@ import (
 	rt "github.com/datasance/router/internal/router"
 
 	sdk "github.com/datasance/iofog-go-sdk/v3/pkg/microservices"
+	qdr "github.com/datasance/router/internal/qdr"
 )
 
 var (
@@ -29,7 +30,18 @@ var (
 
 func init() {
 	router = new(rt.Router)
-	router.Config = new(rt.Config)
+	router.Config = &rt.Config{
+		SslProfiles:       make(map[string]rt.IncomingSslProfile),
+		ConvertedProfiles: make(map[string]qdr.SslProfile),
+		Listeners:         make(map[string]qdr.Listener),
+		Connectors:        make(map[string]qdr.Connector),
+		Addresses:         make(map[string]qdr.Address),
+		LogConfig:         make(map[string]qdr.LogConfig),
+		Bridges: qdr.BridgeConfig{
+			TcpListeners:  make(map[string]qdr.TcpEndpoint),
+			TcpConnectors: make(map[string]qdr.TcpEndpoint),
+		},
+	}
 }
 
 func main() {
@@ -52,11 +64,24 @@ func main() {
 		case <-exitChannel:
 			os.Exit(0)
 		case <-confChannel:
-			newConfig := new(rt.Config)
+			newConfig := &rt.Config{
+				SslProfiles:       make(map[string]rt.IncomingSslProfile),
+				ConvertedProfiles: make(map[string]qdr.SslProfile),
+				Listeners:         make(map[string]qdr.Listener),
+				Connectors:        make(map[string]qdr.Connector),
+				Addresses:         make(map[string]qdr.Address),
+				LogConfig:         make(map[string]qdr.LogConfig),
+				Bridges: qdr.BridgeConfig{
+					TcpListeners:  make(map[string]qdr.TcpEndpoint),
+					TcpConnectors: make(map[string]qdr.TcpEndpoint),
+				},
+			}
 			if err := updateConfig(ioFogClient, newConfig); err != nil {
 				log.Fatal(err)
 			} else {
-				router.UpdateRouter(newConfig)
+				if err := router.UpdateRouter(newConfig); err != nil {
+					log.Printf("Error updating router: %v", err)
+				}
 			}
 		}
 	}
