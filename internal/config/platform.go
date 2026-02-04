@@ -56,8 +56,18 @@ func GetPlatform() types.Platform {
 		configuredPlatform = &platform
 	case types.PlatformLinux:
 		configuredPlatform = &platform
+	case types.PlatformPot:
+		configuredPlatform = &platform
+	case types.PlatformKubernetes:
+		configuredPlatform = &platform
 	default:
 		configuredPlatform = ptr.To(types.PlatformKubernetes)
 	}
 	return *configuredPlatform
+}
+
+// IsKubernetesRouterMode returns true when SKUPPER_PLATFORM is "kubernetes"
+// (router config from ConfigMap). Default is pot (config from iofog SDK).
+func IsKubernetesRouterMode() bool {
+	return os.Getenv(types.ENV_PLATFORM) == string(types.PlatformKubernetes)
 }
