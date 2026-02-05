@@ -1,39 +1,4 @@
-
-FROM registry.access.redhat.com/ubi9/ubi-minimal:latest as builder
-
-
-RUN microdnf -y upgrade --refresh --best --nodocs --noplugins --setopt=install_weak_deps=0 --setopt=keepcache=0 \
- && microdnf clean all -y
-
-RUN microdnf -y --setopt=install_weak_deps=0 --setopt=tsflags=nodocs install \
-    rpm-build \
-    gcc gcc-c++ make cmake pkgconfig \
-    cyrus-sasl-devel openssl-devel libuuid-devel \
-    python3-devel python3-pip \
-    libnghttp2-devel \
-    wget tar patch findutils git \
-    libtool \
- && microdnf clean all -y
-
-RUN git clone https://github.com/skupperproject/skupper-router.git --branch=2.6.x
-WORKDIR /skupper-router
-ENV PROTON_VERSION=0.39.0
-ENV PROTON_SOURCE_URL=${PROTON_SOURCE_URL:-https://github.com/apache/qpid-proton/archive/${PROTON_VERSION}.tar.gz}
-ENV LWS_VERSION=v4.3.3
-ENV LIBUNWIND_VERSION=v1.6.2
-ENV LWS_SOURCE_URL=${LWS_SOURCE_URL:-https://github.com/warmcat/libwebsockets/archive/refs/tags/${LWS_VERSION}.tar.gz}
-ENV LIBUNWIND_SOURCE_URL=${LIBUNWIND_SOURCE_URL:-https://github.com/libunwind/libunwind/archive/refs/tags/${LIBUNWIND_VERSION}.tar.gz}
-ENV PKG_CONFIG_PATH=/usr/local/lib/pkgconfig
-
-ARG VERSION=2.6.0
-ARG PLATFORM=amd64
-ENV PLATFORM=$PLATFORM
-RUN .github/scripts/compile.sh
-RUN if [ "$PLATFORM" = "amd64" ]; then tar zxpf /qpid-proton-image.tar.gz --one-top-level=/image && tar zxpf /skupper-router-image.tar.gz --one-top-level=/image && tar zxpf /libwebsockets-image.tar.gz --one-top-level=/image && tar zxpf /libunwind-image.tar.gz --one-top-level=/image; fi
-RUN if [ "$PLATFORM" = "arm64" ]; then tar zxpf /qpid-proton-image.tar.gz --one-top-level=/image && tar zxpf /skupper-router-image.tar.gz --one-top-level=/image && tar zxpf /libwebsockets-image.tar.gz --one-top-level=/image; fi
-
-
-FROM golang:1.20.14-alpine AS go-builder
+FROM golang:1.23-alpine AS go-builder
 
 ARG TARGETOS
 ARG TARGETARCH
@@ -41,39 +6,18 @@ ARG TARGETARCH
 RUN mkdir -p /go/src/github.com/datasance/router
 WORKDIR /go/src/github.com/datasance/router
 COPY . /go/src/github.com/datasance/router
-RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -o bin/router
+RUN go fmt ./...
+RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath  -ldflags="-s -w" -o bin/router .
 
+FROM registry.access.redhat.com/ubi9/ubi-minimal:latest AS tz
+RUN microdnf install -y tzdata && microdnf reinstall -y tzdata
 
-FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
-
-# upgrade first to avoid fixable vulnerabilities
-RUN microdnf -y upgrade --refresh --best --nodocs --noplugins --setopt=install_weak_deps=0 --setopt=keepcache=0 \
- && microdnf clean all -y
-
-RUN microdnf -y --setopt=install_weak_deps=0 --setopt=tsflags=nodocs install \
-    glibc \
-    cyrus-sasl-lib cyrus-sasl-plain cyrus-sasl-gssapi openssl \
-    python3 \
-    libnghttp2 \
-    gettext hostname iputils \
-    shadow-utils \
- && microdnf clean all
-
-RUN useradd --uid 10000 runner
-USER 10000
-
-WORKDIR /
-COPY --from=builder /image /
-
-WORKDIR /home/skrouterd/etc
-WORKDIR /home/skrouterd/bin
-COPY ./scripts/* /home/skrouterd/bin/
-
-ARG version=latest
-ENV VERSION=${version}
-ENV QDROUTERD_HOME=/home/skrouterd
-
+FROM quay.io/skupper/skupper-router:main
+COPY LICENSE /licenses/LICENSE
 COPY --from=go-builder /go/src/github.com/datasance/router/bin/router /home/skrouterd/bin/router
-COPY scripts/launch.sh /home/skrouterd/bin/launch.sh
+# COPY scripts/launch.sh /home/skrouterd/bin/launch.sh
+COPY --from=tz /usr/share/zoneinfo /usr/share/zoneinfo
 
+# Env: SKUPPER_PLATFORM=pot|kubernetes (default pot), QDROUTERD_CONF (default /tmp/skrouterd.json),
+# SSL_PROFILE_PATH (default /etc/skupper-router-certs). In K8s mode operator mounts config at QDROUTERD_CONF.
 CMD ["/home/skrouterd/bin/router"]

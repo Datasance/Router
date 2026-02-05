@@ -19,7 +19,8 @@ import (
 )
 
 const (
-	ENV_PLATFORM = "SKUPPER_PLATFORM"
+	ENV_PLATFORM      = "SKUPPER_PLATFORM"
+	EnvSSLProfilePath = "SSL_PROFILE_PATH"
 )
 
 const (
@@ -64,7 +65,6 @@ const (
 	RouterMaxFrameSizeDefault     int    = 16384
 	RouterMaxSessionFramesDefault int    = 640
 )
-
 
 // Controller and Collector constants
 const (
@@ -187,6 +187,7 @@ type Platform string
 
 const (
 	PlatformKubernetes Platform = "kubernetes"
+	PlatformPot        Platform = "pot"
 	PlatformPodman     Platform = "podman"
 	PlatformDocker     Platform = "docker"
 	PlatformLinux      Platform = "linux"
@@ -270,7 +271,6 @@ const (
 // 	ControllerCredentials []Credential    `json:"controllerCredentials,omitempty"`
 // 	PrometheusCredentials []Credential    `json:"prometheusCredentials,omitempty"`
 // }
-
 
 // AssemblySpec for the links and connectors that form the VAN topology
 type AssemblySpec struct {
