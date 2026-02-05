@@ -9,7 +9,6 @@ on:
       - CHANGELOG.md
       - LICENSE
   pull_request:
-    # Sequence of patterns matched against refs/heads
     branches:
       - main
     paths-ignore:
@@ -21,81 +20,106 @@ env:
   ADAPTOR_IMAGE_NAME: 'router-adaptor'
 
 jobs:
-  build:
-    runs-on: ubuntu-22.04  
+  version:
+    name: Set version
+    runs-on: ubuntu-latest
     permissions:
-      actions: write
-      checks: write
-      contents: write
-      deployments: write
-      id-token: write
-      issues: write
-      discussions: write
-      packages: write
-      pages: write
-      pull-requests: write
-      repository-projects: write
-      security-events: write
-      statuses: write
-    name: Build and Publish
+      contents: read
+    outputs:
+      VERSION: ${{ steps.tags.outputs.VERSION }}
     steps:
-    - uses: actions/checkout@v4
-    - name: 'Get Previous tag'
-      id: previoustag
-      uses: "WyriHaximus/github-action-get-previous-tag@v1"
-      with:
-        fallback: 0.0.0
-    - name: Set image tag
-      shell: bash
-      id: tags
-      run: |
-        if [[ ${{ github.ref_name }} =~ ^v.* ]] ; then
-          VERSION=${{ github.ref_name }}
-          echo "VERSION=${VERSION:1}" >> "${GITHUB_OUTPUT}"
-        else
+      - uses: actions/checkout@v4
+      - name: Get Previous tag
+        id: previoustag
+        uses: "WyriHaximus/github-action-get-previous-tag@v1"
+        with:
+          fallback: 0.0.0
+      - name: Set image tag
+        shell: bash
+        id: tags
+        run: |
+          if [[ ${{ github.ref_name }} =~ ^v.* ]] ; then
+            VERSION=${{ github.ref_name }}
+            echo "VERSION=${VERSION:1}" >> "${GITHUB_OUTPUT}"
+          else
             VERSION=${{ steps.previoustag.outputs.tag }}
             echo "VERSION=${VERSION:1}-${{ github.run_number }}" >> "${GITHUB_OUTPUT}"
-        fi
+          fi
 
-    - name: Set up QEMU
-      uses: docker/setup-qemu-action@v3
-    
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
+  build_amd64:
+    name: Build amd64
+    needs: version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Login to Github Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: "ghcr.io"
+          username: ${{ github.actor }}
+          password: ${{ secrets.PAT }}
+      - name: Build and push amd64 image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64
+          push: ${{ github.event_name == 'push' }}
+          tags: |
+            ghcr.io/datasance/${{ env.IMAGE_NAME }}:build-${{ github.run_id }}-amd64
 
-    - name: Login to Github Container Registry
-      
-      uses: docker/login-action@v3
-      with:
-        registry: "ghcr.io"
-        username: ${{ github.actor }}
-        password: ${{ secrets.PAT }}
+  build_arm64:
+    name: Build arm64
+    needs: version
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Login to Github Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: "ghcr.io"
+          username: ${{ github.actor }}
+          password: ${{ secrets.PAT }}
+      - name: Build and push arm64 image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/arm64
+          push: ${{ github.event_name == 'push' }}
+          tags: |
+            ghcr.io/datasance/${{ env.IMAGE_NAME }}:build-${{ github.run_id }}-arm64
 
-    - name: Build and Push to ghcr
-      
-      uses: docker/build-push-action@v5
-      id: build_push_ghcr
-      with:
-        context: .
-        file: Dockerfile
-        platforms: linux/amd64, linux/arm64 
-        push: true
-        tags: |
-          ghcr.io/datasance/${{ env.IMAGE_NAME }}:${{ steps.tags.outputs.VERSION }}
-          ghcr.io/datasance/${{ env.IMAGE_NAME }}:latest
-          ghcr.io/datasance/${{ env.IMAGE_NAME }}:main
-
-    - name: Build and Push Router Adaptor to ghcr
-      uses: docker/build-push-action@v5
-      id: build_push_adaptor_ghcr
-      with:
-        context: .
-        file: Dockerfile.adaptor
-        platforms: linux/amd64, linux/arm64 
-        push: true
-        tags: |
-          ghcr.io/datasance/${{ env.ADAPTOR_IMAGE_NAME }}:${{ steps.tags.outputs.VERSION }}
-          ghcr.io/datasance/${{ env.ADAPTOR_IMAGE_NAME }}:latest
-          ghcr.io/datasance/${{ env.ADAPTOR_IMAGE_NAME }}:main
-
-
+  merge_manifest:
+    name: Merge multi-platform manifest
+    needs: [version, build_amd64, build_arm64]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Login to Github Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: "ghcr.io"
+          username: ${{ github.actor }}
+          password: ${{ secrets.PAT }}
+      - name: Create and push multi-platform manifest
+        run: |
+          docker buildx imagetools create \
+            -t ghcr.io/datasance/${{ env.IMAGE_NAME }}:${{ needs.version.outputs.VERSION }} \
+            -t ghcr.io/datasance/${{ env.IMAGE_NAME }}:latest \
+            -t ghcr.io/datasance/${{ env.IMAGE_NAME }}:main \
+            ghcr.io/datasance/${{ env.IMAGE_NAME }}:build-${{ github.run_id }}-amd64 \
+            ghcr.io/datasance/${{ env.IMAGE_NAME }}:build-${{ github.run_id }}-arm64

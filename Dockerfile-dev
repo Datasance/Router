@@ -15,7 +15,7 @@ RUN microdnf install -y tzdata && microdnf reinstall -y tzdata
 FROM quay.io/skupper/skupper-router:main
 COPY LICENSE /licenses/LICENSE
 COPY --from=go-builder /go/src/github.com/datasance/router/bin/router /home/skrouterd/bin/router
-# COPY scripts/launch.sh /home/skrouterd/bin/launch.sh
+COPY scripts/launch.sh /home/skrouterd/bin/launch.sh
 COPY --from=tz /usr/share/zoneinfo /usr/share/zoneinfo
 
 # Env: SKUPPER_PLATFORM=pot|kubernetes (default pot), QDROUTERD_CONF (default /tmp/skrouterd.json),
