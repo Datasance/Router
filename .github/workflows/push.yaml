@@ -116,7 +116,7 @@ jobs:
         with:
           registry: "ghcr.io"
           username: ${{ github.actor }}
-          password: ${{ secrets.PAT }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Create and push multi-platform manifest
         run: |
           docker buildx imagetools create \
