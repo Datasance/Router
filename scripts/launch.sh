@@ -1,13 +1,12 @@
-#!/bin/sh
+#!/bin/bash
 
-QDROUTERD_HOME=/home/skrouterd
-CONFIG_FILE=/tmp/skrouterd.conf
+export HOSTNAME_IP_ADDRESS=$(hostname -i)
 
-rm -f $CONFIG_FILE
-echo "${QDROUTERD_CONF}" | awk '{gsub(/\\n/,"\n")}1' >> $CONFIG_FILE
+EXT=${QDROUTERD_CONF_TYPE:-conf}
+CONFIG_FILE=/tmp/skrouterd.${EXT}
 
-echo "--------------------------------------------------------------"
-cat $CONFIG_FILE
-echo "--------------------------------------------------------------"
+if [ -f $CONFIG_FILE ]; then
+    ARGS="-c $CONFIG_FILE"
+fi
 
-exec skrouterd -c $CONFIG_FILE
+exec skrouterd $ARGS
