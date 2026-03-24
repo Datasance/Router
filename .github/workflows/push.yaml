@@ -2,7 +2,8 @@ name: CI
 on:
   push:
     branches:
-      - main
+      - master
+      - develop
     tags: [v*]
     paths-ignore:
       - README.md
@@ -10,7 +11,8 @@ on:
       - LICENSE
   pull_request:
     branches:
-      - main
+      - master
+      - develop
     paths-ignore:
       - README.md
       - CHANGELOG.md
