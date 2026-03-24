@@ -2,7 +2,8 @@ name: CI
 on:
   push:
     branches:
-      - main
+      - master
+      - develop
     tags: [v*]
     paths-ignore:
       - README.md
@@ -10,7 +11,8 @@ on:
       - LICENSE
   pull_request:
     branches:
-      - main
+      - master
+      - develop
     paths-ignore:
       - README.md
       - CHANGELOG.md
@@ -62,7 +64,7 @@ jobs:
         with:
           registry: "ghcr.io"
           username: ${{ github.actor }}
-          password: ${{ secrets.PAT }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build and push amd64 image
         uses: docker/build-push-action@v5
         with:
@@ -89,7 +91,7 @@ jobs:
         with:
           registry: "ghcr.io"
           username: ${{ github.actor }}
-          password: ${{ secrets.PAT }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build and push arm64 image
         uses: docker/build-push-action@v5
         with:
