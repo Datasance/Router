@@ -11,7 +11,7 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 
-	"github.com/datasance/router/internal/qdr"
+	"github.com/eclipse-iofog/router/internal/qdr"
 )
 
 const debounceDuration = 500 * time.Millisecond

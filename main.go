@@ -1,6 +1,6 @@
 /*
  *  *******************************************************************************
- *  * Copyright (c) 2023 Datasance Teknoloji A.S.
+ *  * Copyright (c) 2023 Contributors to the Eclipse ioFog Project
  *  *
  *  * This program and the accompanying materials are made available under the
  *  * terms of the Eclipse Public License v. 2.0 which is available at
@@ -21,11 +21,11 @@ import (
 	"sync"
 	"time"
 
-	sdk "github.com/datasance/iofog-go-sdk/v3/pkg/microservices"
-	"github.com/datasance/router/internal/config"
-	qdr "github.com/datasance/router/internal/qdr"
-	rt "github.com/datasance/router/internal/router"
-	"github.com/datasance/router/internal/watch"
+	sdk "github.com/eclipse-iofog/iofog-go-sdk/v3/pkg/microservices"
+	"github.com/eclipse-iofog/router/internal/config"
+	qdr "github.com/eclipse-iofog/router/internal/qdr"
+	rt "github.com/eclipse-iofog/router/internal/router"
+	"github.com/eclipse-iofog/router/internal/watch"
 )
 
 var (

@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/datasance/router/internal/resources/types"
+	"github.com/eclipse-iofog/router/internal/resources/types"
 )
 
 type RouterConfig struct {

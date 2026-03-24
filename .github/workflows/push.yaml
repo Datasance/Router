@@ -71,7 +71,7 @@ jobs:
           platforms: linux/amd64
           push: ${{ github.event_name == 'push' }}
           tags: |
-            ghcr.io/datasance/${{ env.IMAGE_NAME }}:build-${{ github.run_id }}-amd64
+            ghcr.io/eclipse-iofog/${{ env.IMAGE_NAME }}:build-${{ github.run_id }}-amd64
 
   build_arm64:
     name: Build arm64
@@ -98,7 +98,7 @@ jobs:
           platforms: linux/arm64
           push: ${{ github.event_name == 'push' }}
           tags: |
-            ghcr.io/datasance/${{ env.IMAGE_NAME }}:build-${{ github.run_id }}-arm64
+            ghcr.io/eclipse-iofog/${{ env.IMAGE_NAME }}:build-${{ github.run_id }}-arm64
 
   merge_manifest:
     name: Merge multi-platform manifest
@@ -118,8 +118,8 @@ jobs:
       - name: Create and push multi-platform manifest
         run: |
           docker buildx imagetools create \
-            -t ghcr.io/datasance/${{ env.IMAGE_NAME }}:${{ needs.version.outputs.VERSION }} \
-            -t ghcr.io/datasance/${{ env.IMAGE_NAME }}:latest \
-            -t ghcr.io/datasance/${{ env.IMAGE_NAME }}:main \
-            ghcr.io/datasance/${{ env.IMAGE_NAME }}:build-${{ github.run_id }}-amd64 \
-            ghcr.io/datasance/${{ env.IMAGE_NAME }}:build-${{ github.run_id }}-arm64
+            -t ghcr.io/eclipse-iofog/${{ env.IMAGE_NAME }}:${{ needs.version.outputs.VERSION }} \
+            -t ghcr.io/eclipse-iofog/${{ env.IMAGE_NAME }}:latest \
+            -t ghcr.io/eclipse-iofog/${{ env.IMAGE_NAME }}:main \
+            ghcr.io/eclipse-iofog/${{ env.IMAGE_NAME }}:build-${{ github.run_id }}-amd64 \
+            ghcr.io/eclipse-iofog/${{ env.IMAGE_NAME }}:build-${{ github.run_id }}-arm64

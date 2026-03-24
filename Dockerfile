@@ -59,9 +59,9 @@ FROM golang:1.23-alpine AS go-builder
 ARG TARGETOS
 ARG TARGETARCH
 
-RUN mkdir -p /go/src/github.com/datasance/router
-WORKDIR /go/src/github.com/datasance/router
-COPY . /go/src/github.com/datasance/router
+RUN mkdir -p /go/src/github.com/eclipse-iofog/router
+WORKDIR /go/src/github.com/eclipse-iofog/router
+COPY . /go/src/github.com/eclipse-iofog/router
 RUN go fmt ./...
 RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath  -ldflags="-s -w" -o bin/router .
 
@@ -85,7 +85,7 @@ ENV VERSION=${version}
 ENV QDROUTERD_HOME=/home/skrouterd
 
 COPY LICENSE /licenses/LICENSE
-COPY --from=go-builder /go/src/github.com/datasance/router/bin/router /home/skrouterd/bin/router
+COPY --from=go-builder /go/src/github.com/eclipse-iofog/router/bin/router /home/skrouterd/bin/router
 
 COPY --from=tz /usr/share/zoneinfo /usr/share/zoneinfo
 

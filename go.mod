@@ -1,11 +1,11 @@
-module github.com/datasance/router
+module github.com/eclipse-iofog/router
 
 go 1.23.0
 
 toolchain go1.24.3
 
 require (
-	github.com/datasance/iofog-go-sdk/v3 v3.7.0
+	github.com/eclipse-iofog/iofog-go-sdk/v3 v3.7.0-beta.0
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/interconnectedcloud/go-amqp v0.12.6-0.20200506124159-f51e540008b5
 	gotest.tools/v3 v3.5.2

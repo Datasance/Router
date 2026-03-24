@@ -5,8 +5,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/datasance/router/internal/resources/types"
-	"github.com/datasance/router/internal/utils"
+	"github.com/eclipse-iofog/router/internal/resources/types"
+	"github.com/eclipse-iofog/router/internal/utils"
 	"k8s.io/utils/ptr"
 )
 
