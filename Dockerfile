@@ -70,6 +70,16 @@ RUN microdnf install -y tzdata && microdnf reinstall -y tzdata
 
 FROM scratch
 
+ARG OCI_SOURCE_REPO
+ARG OCI_VERSION=latest
+ARG OCI_REVISION
+ARG ROUTER_DISTRIBUTION
+
+LABEL org.opencontainers.image.source="${OCI_SOURCE_REPO}" \
+      org.opencontainers.image.version="${OCI_VERSION}" \
+      org.opencontainers.image.revision="${OCI_REVISION}" \
+      distribution="${ROUTER_DISTRIBUTION}"
+
 COPY --from=packager /output /
 COPY --from=packager /etc/yum.repos.d /etc/yum.repos.d
 
@@ -80,8 +90,7 @@ COPY --from=builder /image /
 WORKDIR /home/skrouterd/bin
 COPY ./scripts/* /home/skrouterd/bin/
 
-ARG version=latest
-ENV VERSION=${version}
+ENV VERSION=${OCI_VERSION}
 ENV QDROUTERD_HOME=/home/skrouterd
 
 COPY LICENSE /licenses/LICENSE
