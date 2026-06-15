@@ -1,9 +1,10 @@
-package utils
+package routerutil
 
 import (
-	"gotest.tools/v3/assert"
 	"reflect"
 	"testing"
+
+	"gotest.tools/v3/assert"
 )
 
 func TestStringifySelector(t *testing.T) {
@@ -46,7 +47,6 @@ func TestSliceEquals(t *testing.T) {
 
 	for _, test := range testTable {
 		t.Run(test.name, func(t *testing.T) {
-
 			expectedResult := test.result
 			actualResult := StringSlicesEqual(test.sliceA, test.sliceB)
 			assert.Assert(t, reflect.DeepEqual(actualResult, expectedResult))
@@ -70,7 +70,6 @@ func TestGetOrDefault(t *testing.T) {
 
 	for _, test := range testTable {
 		t.Run(test.name, func(t *testing.T) {
-
 			expectedResult := test.result
 			actualResult := GetOrDefault(test.value, test.defaultValue)
 			assert.Assert(t, reflect.DeepEqual(actualResult, expectedResult))

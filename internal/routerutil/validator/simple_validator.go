@@ -1,6 +1,7 @@
 package validator
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -8,51 +9,51 @@ import (
 )
 
 type Validator interface {
-	Evaluate(value interface{}) (bool, error)
+	Evaluate(value any) (bool, error)
 }
 
 //
 
-type stringValidator struct {
+type StringValidator struct {
 	Expression *regexp.Regexp
 }
 
-func NewStringValidator() *stringValidator {
-	return &stringValidator{
+func NewStringValidator() *StringValidator {
+	return &StringValidator{
 		Expression: regexp.MustCompile(`^\S*$`),
 	}
 }
 
-func NewHostStringValidator() *stringValidator {
-	return &stringValidator{
+func NewHostStringValidator() *StringValidator {
+	return &StringValidator{
 		Expression: regexp.MustCompile(`^[a-z0-9]+([-.]{1}[a-z0-9]+)*$`),
 	}
 }
 
-func NewResourceStringValidator() *stringValidator {
-	return &stringValidator{
+func NewResourceStringValidator() *StringValidator {
+	return &StringValidator{
 		Expression: regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])*(\.[a-z0-9]([-a-z0-9]*[a-z0-9])*)*$`),
 	}
 }
 
 // TBD what are valid characters for selector field
-func NewSelectorStringValidator() *stringValidator {
-	return &stringValidator{
+func NewSelectorStringValidator() *StringValidator {
+	return &StringValidator{
 		Expression: regexp.MustCompile(`^[A-Za-z0-9=:./-]+$`),
 	}
 }
 
-func NewFilePathStringValidator() *stringValidator {
-	return &stringValidator{
+func NewFilePathStringValidator() *StringValidator {
+	return &StringValidator{
 		Expression: regexp.MustCompile(`^[A-Za-z0-9./~-]+$`),
 	}
 }
 
-func (s stringValidator) Evaluate(value interface{}) (bool, error) {
+func (s StringValidator) Evaluate(value any) (bool, error) {
 	v, ok := value.(string)
 
 	if !ok {
-		return false, fmt.Errorf("value is not a string")
+		return false, errors.New("value is not a string")
 	}
 
 	if s.Expression.MatchString(v) {
@@ -76,17 +77,16 @@ func NewNumberValidator() *NumberValidator {
 	}
 }
 
-func (i NumberValidator) Evaluate(value interface{}) (bool, error) {
-
+func (i NumberValidator) Evaluate(value any) (bool, error) {
 	v, ok := value.(int)
 
 	if !ok {
-		return false, fmt.Errorf("value is not an integer")
+		return false, errors.New("value is not an integer")
 	}
 
 	if i.PositiveInt {
 		if v < 0 {
-			return false, fmt.Errorf("value is not positive")
+			return false, errors.New("value is not positive")
 		}
 		if v > 0 {
 			return true, nil
@@ -95,13 +95,13 @@ func (i NumberValidator) Evaluate(value interface{}) (bool, error) {
 			if i.IncludeZero {
 				return true, nil
 			}
-			return false, fmt.Errorf("value 0 is not allowed")
+			return false, errors.New("value 0 is not allowed")
 		}
 	}
 	return true, nil
 }
 
-///
+//
 
 type OptionValidator struct {
 	AllowedOptions []string
@@ -113,16 +113,15 @@ func NewOptionValidator(validOptions []string) *OptionValidator {
 	}
 }
 
-func (i OptionValidator) Evaluate(value interface{}) (bool, error) {
-
+func (i OptionValidator) Evaluate(value any) (bool, error) {
 	v, ok := value.(string)
 
 	if !ok {
-		return false, fmt.Errorf("value is not a string")
+		return false, errors.New("value is not a string")
 	}
 
 	if v == "" {
-		return false, fmt.Errorf("value must not be empty")
+		return false, errors.New("value must not be empty")
 	}
 
 	valueFound := false
@@ -155,7 +154,6 @@ func NewExpirationInSecondsValidator() *DurationValidator {
 }
 
 func (i DurationValidator) Evaluate(value time.Duration) (bool, error) {
-
 	if value < i.MinDuration {
 		return false, fmt.Errorf("duration must not be less than %v; got %v", i.MinDuration, value)
 	}
@@ -171,7 +169,7 @@ type WorkloadValidator struct {
 func NewWorkloadStringValidator(validOptions []string) *WorkloadValidator {
 	re, err := regexp.Compile("^[A-Za-z0-9._-]+$")
 	if err != nil {
-		fmt.Printf("Error compiling regex: %v", err)
+		_, _ = fmt.Printf("Error compiling regex: %v", err)
 		return nil
 	}
 	return &WorkloadValidator{
@@ -180,18 +178,17 @@ func NewWorkloadStringValidator(validOptions []string) *WorkloadValidator {
 	}
 }
 
-func (s WorkloadValidator) Evaluate(value interface{}) (string, string, bool, error) {
-
+func (s WorkloadValidator) Evaluate(value any) (string, string, bool, error) {
 	v, ok := value.(string)
 
 	if !ok {
-		return "", "", false, fmt.Errorf("value is not a string")
+		return "", "", false, errors.New("value is not a string")
 	}
 
 	// workload has two parts <resource-type>/<resource-name>
 	resource := strings.Split(v, "/")
 	if len(resource) != 2 {
-		return "", "", false, fmt.Errorf("workload must include <resource-type>/<resource-name>")
+		return "", "", false, errors.New("workload must include <resource-type>/<resource-name>")
 	}
 
 	if s.Expression.MatchString(resource[1]) {
@@ -201,7 +198,7 @@ func (s WorkloadValidator) Evaluate(value interface{}) (string, string, bool, er
 				return option, resource[1], true, nil
 			}
 		}
-		return "", "", false, fmt.Errorf("resource-type does not match expected value: deployment/service/daemonset/statefulset")
+		return "", "", false, errors.New("resource-type does not match expected value: deployment/service/daemonset/statefulset")
 	}
 	return "", "", false, fmt.Errorf("value does not match this regular expression: %s", s.Expression)
 }

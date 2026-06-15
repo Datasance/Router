@@ -1,12 +1,12 @@
-package utils
+package routerutil
 
 import (
-	"fmt"
+	"errors"
 	"net"
 	"strconv"
 )
 
-func TcpPortInUse(host string, port int) bool {
+func TCPPortInUse(host string, port int) bool {
 	address := net.JoinHostPort(host, strconv.Itoa(port))
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
@@ -18,11 +18,11 @@ func TcpPortInUse(host string, port int) bool {
 	return false
 }
 
-func TcpPortNextFree(startPort int) (int, error) {
+func TCPPortNextFree(startPort int) (int, error) {
 	for port := startPort; port <= 65535; port++ {
-		if !TcpPortInUse("", port) {
+		if !TCPPortInUse("", port) {
 			return port, nil
 		}
 	}
-	return 0, fmt.Errorf("no available ports found")
+	return 0, errors.New("no available ports found")
 }

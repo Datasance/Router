@@ -1,4 +1,4 @@
-package utils
+package routerutil
 
 import (
 	"bytes"
@@ -13,17 +13,17 @@ const (
 func PrettyPrintCommand(command string, args []string) string {
 	var lineLength int
 	buf := new(bytes.Buffer)
-	buf.WriteString(command)
+	_, _ = buf.WriteString(command)
 	lineLength = len(command)
 	for i, arg := range args {
-		buf.WriteString(" ")
-		buf.WriteString(arg)
+		_, _ = buf.WriteString(" ")
+		_, _ = buf.WriteString(arg)
 		lineLength += len(arg) + 1
 		if lineLength > maxLineLength && i < len(args)-1 {
-			buf.WriteString(newLinePrefix)
+			_, _ = buf.WriteString(newLinePrefix)
 			lineLength = len(indent)
 		}
 	}
-	buf.WriteString("\n")
+	_, _ = buf.WriteString("\n")
 	return buf.String()
 }

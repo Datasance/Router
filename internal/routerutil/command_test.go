@@ -1,8 +1,9 @@
-package utils
+package routerutil_test
 
 import (
 	"testing"
 
+	routerutil "github.com/eclipse-iofog/router/internal/routerutil"
 	"gotest.tools/v3/assert"
 )
 
@@ -25,8 +26,8 @@ var (
 )
 
 func TestPrettyPrintCommand(t *testing.T) {
-	output := PrettyPrintCommand(commandArgs[0], commandArgs[1:])
+	output := routerutil.PrettyPrintCommand(commandArgs[0], commandArgs[1:])
 	assert.Equal(t, expectedOutput, output)
-	shortCommand := PrettyPrintCommand("command", []string{"arg1", "arg2", "arg3"})
+	shortCommand := routerutil.PrettyPrintCommand("command", []string{"arg1", "arg2", "arg3"})
 	assert.Equal(t, "command arg1 arg2 arg3\n", shortCommand)
 }

@@ -1,4 +1,4 @@
-package utils
+package routerutil
 
 import (
 	"regexp"
@@ -44,7 +44,7 @@ func (a *Version) MoreRecentThan(b Version) bool {
 	} else if a.Minor < b.Minor {
 		return false
 	}
-	//a.Minor == b.Minor, so look at Patch
+	// a.Minor == b.Minor, so look at Patch
 	return a.Patch > b.Patch
 }
 
@@ -60,7 +60,7 @@ func (a *Version) LessRecentThan(b Version) bool {
 	} else if a.Minor > b.Minor {
 		return false
 	}
-	//a.Minor == b.Minor, so look at Patch
+	// a.Minor == b.Minor, so look at Patch
 	return a.Patch < b.Patch
 }
 
@@ -68,8 +68,8 @@ func (a *Version) Equivalent(b Version) bool {
 	return a.Major == b.Major && a.Minor == b.Minor && a.Patch == b.Patch
 }
 
-func (v *Version) IsUndefined() bool {
-	return v.Major == 0 && v.Minor == 0 && v.Patch == 0 && v.Qualifier == ""
+func (a *Version) IsUndefined() bool {
+	return a.Major == 0 && a.Minor == 0 && a.Patch == 0 && a.Qualifier == ""
 }
 
 func EquivalentVersion(a string, b string) bool {
@@ -91,7 +91,7 @@ func MoreRecentThanVersion(a string, b string) bool {
 }
 
 func IsValidFor(actual string, minimum string) bool {
-	if actual == "" { //assume pre 0.5
+	if actual == "" { // assume pre 0.5
 		return false
 	}
 	va := ParseVersion(actual)
