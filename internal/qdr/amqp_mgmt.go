@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/datasance/router/internal/config"
-	"github.com/datasance/router/internal/resources/types"
-	"github.com/datasance/router/internal/utils"
+	"github.com/eclipse-iofog/router/internal/config"
+	"github.com/eclipse-iofog/router/internal/resources/types"
+	"github.com/eclipse-iofog/router/internal/utils"
 	amqp "github.com/interconnectedcloud/go-amqp"
 )
 

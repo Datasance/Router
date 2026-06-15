@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/datasance/router/internal/qdr"
+	"github.com/eclipse-iofog/router/internal/qdr"
 )
 
 func TestScanSSLProfileDir(t *testing.T) {

@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/datasance/router/internal/resources/types"
+	"github.com/eclipse-iofog/router/internal/resources/types"
 )
 
 func TestGetConfigPath(t *testing.T) {

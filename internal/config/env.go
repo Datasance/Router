@@ -3,7 +3,7 @@ package config
 import (
 	"os"
 
-	"github.com/datasance/router/internal/resources/types"
+	"github.com/eclipse-iofog/router/internal/resources/types"
 )
 
 const (
