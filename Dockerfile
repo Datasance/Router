@@ -1,74 +1,94 @@
-# Build Apache Qpid Dispatch
-FROM ubuntu:latest AS qpid-builder
+FROM registry.access.redhat.com/ubi9/ubi-minimal:latest AS builder
 
-ENV TZ=America/New_York
-ENV DEBIAN_FRONTEND=noninteractive
+# upgrade first to avoid fixable vulnerabilities
+# do this in builder as well as in buildee, so builder does not have different pkg versions from buildee image
+RUN microdnf -y upgrade --refresh --best --nodocs --noplugins --setopt=install_weak_deps=0 --setopt=keepcache=0 \
+ && microdnf clean all -y
 
-RUN apt-get update && \
-    apt-get install -y curl gcc g++ automake libwebsockets-dev libtool zlib1g-dev cmake libsasl2-dev libssl-dev python3 python3-dev libuv1-dev sasl2-bin swig maven git && \
-    apt-get -y clean
+RUN microdnf -y --setopt=install_weak_deps=0 --setopt=tsflags=nodocs install \
+    rpm-build \
+    gcc gcc-c++ make cmake pkgconfig \
+    cyrus-sasl-devel openssl-devel libuuid-devel \
+    python3-devel python3-pip python3-wheel \
+    libnghttp2-devel \
+    wget tar patch findutils git \
+    libtool \
+ && microdnf clean all -y
 
-RUN git clone -b 1.18.0 --single-branch https://gitbox.apache.org/repos/asf/qpid-dispatch.git
+WORKDIR /build
+# Clone skupper-router so repo contents are in /build (not /build/skupper-router)
+RUN git clone --depth 1 --branch main https://github.com/skupperproject/skupper-router.git .
+ENV PROTON_VERSION=main
+ENV PROTON_SOURCE_URL=${PROTON_SOURCE_URL:-https://github.com/apache/qpid-proton/archive/${PROTON_VERSION}.tar.gz}
+ENV LWS_VERSION=v4.3.3
+ENV LIBUNWIND_VERSION=v1.8.1
+ENV LWS_SOURCE_URL=${LWS_SOURCE_URL:-https://github.com/warmcat/libwebsockets/archive/refs/tags/${LWS_VERSION}.tar.gz}
+ENV LIBUNWIND_SOURCE_URL=${LIBUNWIND_SOURCE_URL:-https://github.com/libunwind/libunwind/archive/refs/tags/${LIBUNWIND_VERSION}.tar.gz}
+ENV PKG_CONFIG_PATH=/usr/local/lib/pkgconfig
 
-WORKDIR /qpid-dispatch
-RUN git submodule add -b v3.0-stable https://github.com/warmcat/libwebsockets
-RUN git submodule add https://gitbox.apache.org/repos/asf/qpid-proton.git && cd qpid-proton/ && git checkout 0.39.0
+ARG VERSION=0.0.0
+ENV VERSION=$VERSION
+ARG TARGETARCH
+ENV PLATFORM=$TARGETARCH
+RUN .github/scripts/compile.sh
+RUN mkdir -p /image && if [ "$PLATFORM" = "amd64" ]; then tar zxpf /qpid-proton-image.tar.gz -C /image && tar zxpf /skupper-router-image.tar.gz -C /image && tar zxpf /libwebsockets-image.tar.gz -C /image && tar zxpf /libunwind-image.tar.gz -C /image; fi
+RUN if [ "$PLATFORM" = "arm64" ]; then tar zxpf /qpid-proton-image.tar.gz -C /image && tar zxpf /skupper-router-image.tar.gz -C /image && tar zxpf /libwebsockets-image.tar.gz -C /image; fi
+RUN if [ "$PLATFORM" = "s390x" ]; then tar zxpf /qpid-proton-image.tar.gz -C /image && tar zxpf /skupper-router-image.tar.gz -C /image && tar zxpf /libwebsockets-image.tar.gz -C /image; fi
+RUN if [ "$PLATFORM" = "ppc64le" ]; then tar zxpf /qpid-proton-image.tar.gz -C /image && tar zxpf /skupper-router-image.tar.gz -C /image && tar zxpf /libwebsockets-image.tar.gz -C /image; fi
 
-# Transform deprecated errors into warning until we get this qpid thing sorted out
-RUN sed -i 's/-Werror/-Werror -Wno-error=deprecated-declarations/g' /qpid-dispatch/libwebsockets/CMakeLists.txt
-RUN sed -i 's/-Werror/-Werror -Wno-error=deprecated-declarations/g' /qpid-dispatch/qpid-proton/CMakeLists.txt
+RUN mkdir /image/licenses && cp ./LICENSE /image/licenses
 
-RUN mkdir libwebsockets/build && cd /qpid-dispatch/libwebsockets/build && cmake .. -DCMAKE_INSTALL_PREFIX=/usr && make install
+FROM registry.access.redhat.com/ubi9/ubi:latest AS packager
 
-WORKDIR /qpid-dispatch
-RUN mkdir qpid-proton/build && cd qpid-proton/build && cmake .. -DSYSINSTALL_BINDINGS=ON -DCMAKE_INSTALL_PREFIX=/usr -DSYSINSTALL_PYTHON=ON && make install
+RUN dnf -y --setopt=install_weak_deps=0 --nodocs \
+    --installroot /output install \
+    coreutils-single \
+    cyrus-sasl-lib cyrus-sasl-plain openssl \
+    python3 \
+    libnghttp2 \
+    hostname iputils \
+    shadow-utils \
+ && chroot /output useradd --uid 10000 runner \
+ && dnf -y --installroot /output remove shadow-utils \
+ && dnf clean all --installroot /output
+RUN [ -d /usr/share/buildinfo ] && cp -a /usr/share/buildinfo /output/usr/share/buildinfo ||:
+RUN [ -d /root/buildinfo ] && cp -a /root/buildinfo /output/root/buildinfo ||:
 
-WORKDIR /qpid-dispatch
-RUN mkdir build && cd build && cmake .. -DCMAKE_INSTALL_PREFIX=/usr -DUSE_VALGRIND=NO && cmake --build . --target install
+FROM golang:1.23-alpine AS go-builder
 
-# Build ioFog Router utility
-FROM golang:1.21.5 AS go-builder
+ARG TARGETOS
+ARG TARGETARCH
 
 RUN mkdir -p /go/src/github.com/datasance/router
 WORKDIR /go/src/github.com/datasance/router
 COPY . /go/src/github.com/datasance/router
-RUN go build -o bin/router
+RUN go fmt ./...
+RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath  -ldflags="-s -w" -o bin/router .
 
-# Build final image
-FROM ubuntu:latest
+FROM registry.access.redhat.com/ubi9/ubi-minimal:latest AS tz
+RUN microdnf install -y tzdata && microdnf reinstall -y tzdata
 
-RUN apt-get update && \
-    apt-get install -y python3 python3-dev iputils-ping libsasl2-modules nano && \
-    apt-get -y clean
+FROM scratch
 
-COPY --from=qpid-builder /usr/lib/lib* /usr/lib/
-COPY --from=qpid-builder /usr/lib/python3 /usr/lib/python3
-COPY --from=qpid-builder /usr/lib/python3.10 /usr/lib/python3.10
-COPY --from=qpid-builder /usr/lib/ssl /usr/lib/ssl
-COPY --from=qpid-builder /usr/lib/sasl2 /usr/lib/sasl2
-COPY --from=qpid-builder /usr/lib/openssh /usr/lib/openssh
-COPY --from=qpid-builder /usr/lib/*-linux-* /usr/lib/
-COPY --from=qpid-builder /usr/sbin/qdrouterd /usr/sbin/qdrouterd
-COPY --from=qpid-builder /usr/bin/qdmanage /usr/bin/qdmanage
-COPY --from=qpid-builder /usr/bin/qdstat /usr/bin/qdstat
+COPY --from=packager /output /
+COPY --from=packager /etc/yum.repos.d /etc/yum.repos.d
 
-COPY --from=qpid-builder /usr/lib/qpid-dispatch /usr/lib/qpid-dispatch
-COPY --from=qpid-builder /usr/include/qpid /usr/include/qpid
+USER 10000
 
-COPY --from=qpid-builder /usr/share/proton /usr/share/proton
-COPY --from=qpid-builder /usr/include/proton /usr/include/proton
-COPY --from=qpid-builder /usr/lib/pkgconfig/libqpid* /usr/lib/pkgconfig/
-COPY --from=qpid-builder /usr/lib/cmake/Proton /usr/lib/cmake/Proton
-COPY --from=qpid-builder /usr/share/proton /usr/share/proton
+COPY --from=builder /image /
 
-# Silly hack to fix layer issue in Azure Devops :-/
-RUN true
-COPY --from=go-builder /go/src/github.com/datasance/router/bin/router /qpid-dispatch/router
+WORKDIR /home/skrouterd/bin
+COPY ./scripts/* /home/skrouterd/bin/
 
-COPY scripts/launch.sh /qpid-dispatch/launch.sh
+ARG version=latest
+ENV VERSION=${version}
+ENV QDROUTERD_HOME=/home/skrouterd
 
-ENV PYTHONPATH=/usr/lib/python3.10/site-packages
-LABEL org.opencontainers.image.description Router
-LABEL org.opencontainers.image.source=https://github.com/datasance/Router
-LABEL org.opencontainers.image.licenses=EPL2.0
-CMD ["/qpid-dispatch/router"]
+COPY LICENSE /licenses/LICENSE
+COPY --from=go-builder /go/src/github.com/datasance/router/bin/router /home/skrouterd/bin/router
+
+COPY --from=tz /usr/share/zoneinfo /usr/share/zoneinfo
+
+# Env: SKUPPER_PLATFORM=pot|kubernetes (default pot), QDROUTERD_CONF (default /tmp/skrouterd.json),
+# SSL_PROFILE_PATH (default /etc/skupper-router-certs). In K8s mode operator mounts config at QDROUTERD_CONF.
+CMD ["/home/skrouterd/bin/router"]

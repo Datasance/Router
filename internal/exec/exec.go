@@ -22,7 +22,7 @@ import (
 )
 
 func Run(ch chan<- error, command string, args []string, env []string) {
-	log.Printf("Running command: %s with args: %v and env vars: %v", command, args, env)
+	// log.Printf("Running command: %s with args: %v and env vars: %v", command, args, env)
 
 	cmd := exec.Command(command, args...)
 	cmd.Env = append(os.Environ(), env...)
