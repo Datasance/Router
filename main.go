@@ -29,21 +29,25 @@ func init() {
 		Addresses:   make(map[string]qdr.Address),
 		LogConfig:   make(map[string]qdr.LogConfig),
 		Bridges: qdr.BridgeConfig{
-			TcpListeners:  make(map[string]qdr.TcpEndpoint),
-			TcpConnectors: make(map[string]qdr.TcpEndpoint),
+			TCPListeners:  make(map[string]qdr.TCPEndpoint),
+			TCPConnectors: make(map[string]qdr.TCPEndpoint),
 		},
 	}
 }
 
 func main() {
+	var err error
 	if config.IsKubernetesRouterMode() {
-		runKubernetesMode()
-		return
+		err = runKubernetesMode()
+	} else {
+		err = runPotMode()
 	}
-	runPotMode()
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
-func runKubernetesMode() {
+func runKubernetesMode() error {
 	configPath := config.GetConfigPath()
 	// Config file is volume-mounted by the operator at QDROUTERD_CONF; retry briefly if not yet present.
 	var data []byte
@@ -57,11 +61,13 @@ func runKubernetesMode() {
 			time.Sleep(time.Second)
 			continue
 		}
-		log.Fatalf("Failed to read router config from %s: %v", configPath, err)
+		log.Printf("Failed to read router config from %s: %v", configPath, err)
+		return fmt.Errorf("failed to read router config from %s: %w", configPath, err)
 	}
 	qdrConfig, err := qdr.UnmarshalRouterConfig(string(data))
 	if err != nil {
-		log.Fatalf("Failed to unmarshal router config: %v", err)
+		log.Printf("Failed to unmarshal router config: %v", err)
+		return fmt.Errorf("failed to unmarshal router config: %w", err)
 	}
 	router.Config = &rt.Config{
 		Metadata:    qdrConfig.Metadata,
@@ -78,7 +84,7 @@ func runKubernetesMode() {
 	ctx := context.Background()
 	var lastAppliedMu sync.Mutex
 	lastApplied := string(data)
-	go watch.WatchConfigFile(ctx, configPath, func(configJSON string) error {
+	go watch.ConfigFile(ctx, configPath, func(configJSON string) error {
 		lastAppliedMu.Lock()
 		same := lastApplied == configJSON
 		lastAppliedMu.Unlock()
@@ -109,28 +115,28 @@ func runKubernetesMode() {
 		lastAppliedMu.Unlock()
 		return nil
 	})
-	go watch.WatchSSLProfileDir(ctx, config.GetSSLProfilePath(), router.OnSSLProfilesFromDisk)
+	go watch.SSLProfileDir(ctx, config.GetSSLProfilePath(), router.OnSSLProfilesFromDisk)
 	<-exitChannel
-	os.Exit(0)
+	return nil
 }
 
-func runPotMode() {
+func runPotMode() error {
 	ioFogClient, clientError := sdk.NewDefaultIoFogClientV3()
 	if clientError != nil {
-		log.Fatalln(clientError.Error())
+		return clientError
 	}
 	if err := updateConfig(ioFogClient, router.Config); err != nil {
-		log.Fatalln(err.Error())
+		return err
 	}
 	confChannel := ioFogClient.EstablishControlWsConnection(0)
 	exitChannel := make(chan error)
 	go router.StartRouter(exitChannel)
 	ctx := context.Background()
-	go watch.WatchSSLProfileDir(ctx, config.GetSSLProfilePath(), router.OnSSLProfilesFromDisk)
+	go watch.SSLProfileDir(ctx, config.GetSSLProfilePath(), router.OnSSLProfilesFromDisk)
 	for {
 		select {
 		case <-exitChannel:
-			os.Exit(0)
+			return nil
 		case <-confChannel:
 			newConfig := &rt.Config{
 				SslProfiles: make(map[string]qdr.SslProfile),
@@ -139,8 +145,8 @@ func runPotMode() {
 				Addresses:   make(map[string]qdr.Address),
 				LogConfig:   make(map[string]qdr.LogConfig),
 				Bridges: qdr.BridgeConfig{
-					TcpListeners:  make(map[string]qdr.TcpEndpoint),
-					TcpConnectors: make(map[string]qdr.TcpEndpoint),
+					TCPListeners:  make(map[string]qdr.TCPEndpoint),
+					TCPConnectors: make(map[string]qdr.TCPEndpoint),
 				},
 			}
 			if err := updateConfig(ioFogClient, newConfig); err != nil {
@@ -154,7 +160,7 @@ func runPotMode() {
 	}
 }
 
-func updateConfig(ioFogClient *sdk.IoFogClient, config interface{}) error {
+func updateConfig(ioFogClient *sdk.IoFogClient, config any) error {
 	const attemptLimit = 5
 	var lastErr error
 

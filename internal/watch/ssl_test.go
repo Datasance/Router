@@ -4,8 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-
-	"github.com/eclipse-iofog/router/internal/qdr"
 )
 
 func TestScanSSLProfileDir(t *testing.T) {
@@ -47,7 +45,7 @@ func TestScanSSLProfileDir(t *testing.T) {
 		t.Errorf("CaCertFile = %q, want %q", p.CaCertFile, absCa)
 	}
 	if p.CertFile != "" || p.PrivateKeyFile != "" {
-		t.Errorf("expected no cert/key when only ca.crt present")
+		t.Error("expected no cert/key when only ca.crt present")
 	}
 
 	// Subdir with ca.crt, tls.crt, tls.key
@@ -105,7 +103,7 @@ func TestScanSSLProfileDir_ProfilesAreQdrSslProfile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var _ map[string]qdr.SslProfile = profiles
+	var _ = profiles
 	if len(profiles) != 1 {
 		t.Fatalf("got %d profiles", len(profiles))
 	}

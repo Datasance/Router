@@ -28,58 +28,58 @@ type Router struct {
 	Config *Config
 }
 
-func (router *Router) UpdateRouter(newConfig *Config) error {
-	log.Printf("DEBUG: Starting router configuration update")
+func (r *Router) UpdateRouter(newConfig *Config) error {
+	log.Print("DEBUG: Starting router configuration update")
 
 	// Create agent pool and get client
-	log.Printf("DEBUG: Creating agent pool")
+	log.Print("DEBUG: Creating agent pool")
 	agentPool := qdr.NewAgentPool("amqp://localhost:5672", nil)
 	client, err := agentPool.Get()
 	if err != nil {
 		log.Printf("ERROR: Failed to get client from pool: %v", err)
-		return fmt.Errorf("failed to get client from pool: %v", err)
+		return fmt.Errorf("failed to get client from pool: %w", err)
 	}
 
 	// Get current bridge configuration
-	log.Printf("DEBUG: Getting current bridge configuration")
+	log.Print("DEBUG: Getting current bridge configuration")
 	currentBridgeConfig, err := client.GetLocalBridgeConfig()
 	if err != nil {
 		log.Printf("ERROR: Failed to get current bridge config: %v", err)
-		return fmt.Errorf("failed to get current bridge config: %v", err)
+		return fmt.Errorf("failed to get current bridge config: %w", err)
 	}
 
 	// Calculate differences using qdr's built-in Difference method
-	log.Printf("DEBUG: Calculating bridge configuration differences")
+	log.Print("DEBUG: Calculating bridge configuration differences")
 	changes := currentBridgeConfig.Difference(&newConfig.Bridges)
 	log.Printf("DEBUG: Bridge config changes: %+v", changes)
 
 	// Update via AMQP management using qdr's built-in function
-	log.Printf("DEBUG: Updating bridge configuration")
+	log.Print("DEBUG: Updating bridge configuration")
 	if err := client.UpdateLocalBridgeConfig(changes); err != nil {
 		log.Printf("ERROR: Failed to update bridge config: %v", err)
-		return fmt.Errorf("failed to update bridge config: %v", err)
+		return fmt.Errorf("failed to update bridge config: %w", err)
 	}
 
 	// Update the configuration file (skip on Kubernetes; config is read-only from ConfigMap)
 	if !config.IsKubernetesRouterMode() {
-		log.Printf("DEBUG: Updating router configuration file")
-		configJSON := router.GetRouterConfig()
+		log.Print("DEBUG: Updating router configuration file")
+		configJSON := r.GetRouterConfig()
 		configPath := config.GetConfigPath()
 		if err := os.WriteFile(configPath, []byte(configJSON), 0644); err != nil {
 			log.Printf("ERROR: Failed to write router configuration: %v", err)
-			return fmt.Errorf("failed to write router configuration: %v", err)
+			return fmt.Errorf("failed to write router configuration: %w", err)
 		}
 	}
 
 	// Update the in-memory configuration
-	router.Config = newConfig
+	r.Config = newConfig
 
 	// Return client to the pool instead of closing it
 	if client != nil {
 		agentPool.Put(client)
 	}
 
-	log.Printf("DEBUG: Router configuration update completed successfully")
+	log.Print("DEBUG: Router configuration update completed successfully")
 	return nil
 }
 
@@ -116,19 +116,19 @@ func (r *Router) OnSSLProfilesFromDisk(profiles map[string]qdr.SslProfile) {
 	}
 }
 
-func (router *Router) GetRouterConfig() string {
-	config := router.Config
-	configElements := [][]interface{}{}
+func (r *Router) GetRouterConfig() string {
+	config := r.Config
+	configElements := [][]any{}
 
 	// Add router metadata
-	configElements = append(configElements, []interface{}{
+	configElements = append(configElements, []any{
 		"router",
 		config.Metadata,
 	})
 
 	// Add SSL profiles (file paths are already absolute)
 	for _, profile := range config.SslProfiles {
-		configElements = append(configElements, []interface{}{
+		configElements = append(configElements, []any{
 			"sslProfile",
 			profile,
 		})
@@ -136,7 +136,7 @@ func (router *Router) GetRouterConfig() string {
 
 	// Add listeners
 	for _, listener := range config.Listeners {
-		configElements = append(configElements, []interface{}{
+		configElements = append(configElements, []any{
 			"listener",
 			listener,
 		})
@@ -144,23 +144,23 @@ func (router *Router) GetRouterConfig() string {
 
 	// Add connectors
 	for _, connector := range config.Connectors {
-		configElements = append(configElements, []interface{}{
+		configElements = append(configElements, []any{
 			"connector",
 			connector,
 		})
 	}
 
 	// Add TCP listeners
-	for _, listener := range config.Bridges.TcpListeners {
-		configElements = append(configElements, []interface{}{
+	for _, listener := range config.Bridges.TCPListeners {
+		configElements = append(configElements, []any{
 			"tcpListener",
 			listener,
 		})
 	}
 
 	// Add TCP connectors
-	for _, connector := range config.Bridges.TcpConnectors {
-		configElements = append(configElements, []interface{}{
+	for _, connector := range config.Bridges.TCPConnectors {
+		configElements = append(configElements, []any{
 			"tcpConnector",
 			connector,
 		})
@@ -168,7 +168,7 @@ func (router *Router) GetRouterConfig() string {
 
 	// Add addresses
 	for _, address := range config.Addresses {
-		configElements = append(configElements, []interface{}{
+		configElements = append(configElements, []any{
 			"address",
 			address,
 		})
@@ -176,7 +176,7 @@ func (router *Router) GetRouterConfig() string {
 
 	// Add log configs
 	for _, logConfig := range config.LogConfig {
-		configElements = append(configElements, []interface{}{
+		configElements = append(configElements, []any{
 			"log",
 			logConfig,
 		})
@@ -184,7 +184,7 @@ func (router *Router) GetRouterConfig() string {
 
 	// Add site config if present
 	if config.SiteConfig != nil {
-		configElements = append(configElements, []interface{}{
+		configElements = append(configElements, []any{
 			"site",
 			*config.SiteConfig,
 		})
@@ -200,26 +200,26 @@ func (router *Router) GetRouterConfig() string {
 	return string(data)
 }
 
-func (router *Router) StartRouter(ch chan<- error) {
-	log.Printf("DEBUG: Starting router with configuration")
+func (r *Router) StartRouter(ch chan<- error) {
+	log.Print("DEBUG: Starting router with configuration")
 
 	configPath := config.GetConfigPath()
 	// On Pot we create and write initial config; on Kubernetes config is already mounted at QDROUTERD_CONF
 	if !config.IsKubernetesRouterMode() {
-		log.Printf("DEBUG: Creating initial router configuration")
-		configJSON := router.GetRouterConfig()
+		log.Print("DEBUG: Creating initial router configuration")
+		configJSON := r.GetRouterConfig()
 
-		log.Printf("DEBUG: Ensuring configuration directory exists")
+		log.Print("DEBUG: Ensuring configuration directory exists")
 		if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
 			log.Printf("ERROR: Failed to create configuration directory: %v", err)
-			ch <- fmt.Errorf("failed to create configuration directory: %v", err)
+			ch <- fmt.Errorf("failed to create configuration directory: %w", err)
 			return
 		}
 
 		log.Printf("DEBUG: Writing initial configuration to %s", configPath)
 		if err := os.WriteFile(configPath, []byte(configJSON), 0644); err != nil {
 			log.Printf("ERROR: Failed to write initial configuration: %v", err)
-			ch <- fmt.Errorf("failed to write initial configuration: %v", err)
+			ch <- fmt.Errorf("failed to write initial configuration: %w", err)
 			return
 		}
 	}
@@ -230,7 +230,7 @@ func (router *Router) StartRouter(ch chan<- error) {
 		"QDROUTERD_CONF_TYPE=json",
 	}
 	exitChannel := make(chan error)
-	log.Printf("DEBUG: Starting router process")
+	log.Print("DEBUG: Starting router process")
 	go exec.Run(ch, "/home/skrouterd/bin/launch.sh", []string{}, env)
 
 	// Monitor for configuration updates
@@ -239,7 +239,7 @@ func (router *Router) StartRouter(ch chan<- error) {
 			select {
 			case err := <-exitChannel:
 				log.Printf("ERROR: Router process exited with error: %v", err)
-				ch <- fmt.Errorf("router process exited with error: %v", err)
+				ch <- fmt.Errorf("router process exited with error: %w", err)
 				return
 			default:
 				// Check for configuration updates from ioFog-agent

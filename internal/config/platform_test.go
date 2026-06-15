@@ -4,11 +4,11 @@ import (
 	"os"
 	"testing"
 
-	"github.com/eclipse-iofog/router/internal/resources/types"
+	types "github.com/eclipse-iofog/router/internal/resources/skuppertypes"
 )
 
 func TestIsKubernetesRouterMode(t *testing.T) {
-	key := types.ENV_PLATFORM
+	key := types.EnvPlatform
 	defer func() { _ = os.Unsetenv(key) }()
 
 	tests := []struct {
@@ -37,7 +37,7 @@ func TestIsKubernetesRouterMode(t *testing.T) {
 }
 
 func TestIsPotRouterMode(t *testing.T) {
-	key := types.ENV_PLATFORM
+	key := types.EnvPlatform
 	defer func() { _ = os.Unsetenv(key) }()
 
 	tests := []struct {
@@ -66,13 +66,13 @@ func TestIsPotRouterMode(t *testing.T) {
 }
 
 func TestGetPlatformAcceptsIoFog(t *testing.T) {
-	key := types.ENV_PLATFORM
+	key := types.EnvPlatform
 	defer func() {
 		_ = os.Unsetenv(key)
 		ClearPlatform()
 	}()
 
-	os.Setenv(key, "iofog")
+	_ = os.Setenv(key, "iofog")
 	ClearPlatform()
 	if got := GetPlatform(); got != types.PlatformIoFog {
 		t.Errorf("GetPlatform() with iofog = %q, want %q", got, types.PlatformIoFog)
