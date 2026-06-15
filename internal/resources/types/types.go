@@ -188,6 +188,7 @@ type Platform string
 const (
 	PlatformKubernetes Platform = "kubernetes"
 	PlatformPot        Platform = "pot"
+	PlatformIoFog      Platform = "iofog"
 	PlatformPodman     Platform = "podman"
 	PlatformDocker     Platform = "docker"
 	PlatformLinux      Platform = "linux"
