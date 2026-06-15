@@ -1,16 +1,3 @@
-/*
- *  *******************************************************************************
- *  * Copyright (c) 2023 Datasance Teknoloji A.S.
- *  *
- *  * This program and the accompanying materials are made available under the
- *  * terms of the Eclipse Public License v. 2.0 which is available at
- *  * http://www.eclipse.org/legal/epl-2.0
- *  *
- *  * SPDX-License-Identifier: EPL-2.0
- *  *******************************************************************************
- *
- */
-
 package router
 
 import (
@@ -21,9 +8,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/datasance/router/internal/config"
-	"github.com/datasance/router/internal/exec"
-	"github.com/datasance/router/internal/qdr"
+	"github.com/eclipse-iofog/router/internal/config"
+	"github.com/eclipse-iofog/router/internal/exec"
+	"github.com/eclipse-iofog/router/internal/qdr"
 )
 
 type Config struct {

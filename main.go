@@ -1,31 +1,19 @@
-/*
- *  *******************************************************************************
- *  * Copyright (c) 2023 Datasance Teknoloji A.S.
- *  *
- *  * This program and the accompanying materials are made available under the
- *  * terms of the Eclipse Public License v. 2.0 which is available at
- *  * http://www.eclipse.org/legal/epl-2.0
- *  *
- *  * SPDX-License-Identifier: EPL-2.0
- *  *******************************************************************************
- *
- */
-
 package main
 
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"os"
 	"sync"
 	"time"
 
 	sdk "github.com/datasance/iofog-go-sdk/v3/pkg/microservices"
-	"github.com/datasance/router/internal/config"
-	qdr "github.com/datasance/router/internal/qdr"
-	rt "github.com/datasance/router/internal/router"
-	"github.com/datasance/router/internal/watch"
+	"github.com/eclipse-iofog/router/internal/config"
+	qdr "github.com/eclipse-iofog/router/internal/qdr"
+	rt "github.com/eclipse-iofog/router/internal/router"
+	"github.com/eclipse-iofog/router/internal/watch"
 )
 
 var (
@@ -127,7 +115,7 @@ func runKubernetesMode() {
 }
 
 func runPotMode() {
-	ioFogClient, clientError := sdk.NewDefaultIoFogClient()
+	ioFogClient, clientError := sdk.NewDefaultIoFogClientV3()
 	if clientError != nil {
 		log.Fatalln(clientError.Error())
 	}
@@ -156,7 +144,7 @@ func runPotMode() {
 				},
 			}
 			if err := updateConfig(ioFogClient, newConfig); err != nil {
-				log.Fatal(err)
+				log.Printf("Error updating config from ioFog local API: %v", err)
 			} else {
 				if err := router.UpdateRouter(newConfig); err != nil {
 					log.Printf("Error updating router: %v", err)
@@ -167,16 +155,28 @@ func runPotMode() {
 }
 
 func updateConfig(ioFogClient *sdk.IoFogClient, config interface{}) error {
-	attemptLimit := 5
-	var err error
+	const attemptLimit = 5
+	var lastErr error
 
-	for err = ioFogClient.GetConfigIntoStruct(config); err != nil && attemptLimit > 0; attemptLimit-- {
-		return err
+	for attempt := 1; attempt <= attemptLimit; attempt++ {
+		lastErr = ioFogClient.GetConfigIntoStruct(config)
+		if lastErr == nil {
+			return nil
+		}
+		if attempt == attemptLimit {
+			break
+		}
+		log.Printf("WARN: Failed to get config from ioFog local API (attempt %d/%d): %v", attempt, attemptLimit, lastErr)
+		time.Sleep(time.Duration(attempt) * time.Second)
 	}
 
-	if attemptLimit == 0 {
-		return errors.New("Update config failed")
+	var authErr *sdk.AuthMaterialError
+	if errors.As(lastErr, &authErr) {
+		return fmt.Errorf("failed to load ioFog service-account auth material: %w", lastErr)
 	}
-
-	return nil
+	var apiErr *sdk.V3APIError
+	if errors.As(lastErr, &apiErr) {
+		return fmt.Errorf("ioFog local API returned a v3 error while getting config: %w", lastErr)
+	}
+	return fmt.Errorf("update config failed after %d attempts: %w", attemptLimit, lastErr)
 }
