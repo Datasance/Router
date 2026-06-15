@@ -2,3 +2,7 @@
 .vscode
 x.json
 zz.yaml
+bin/
+.cache/
+.cursor
+AGENTS.md
