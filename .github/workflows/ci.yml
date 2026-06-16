@@ -94,10 +94,14 @@ jobs:
           push: false
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          build-args: |
+            OCI_SOURCE_REPO=${{ env.OCI_SOURCE_REPO }}
+            OCI_VERSION=ci
+            OCI_REVISION=${{ github.sha }}
+            ROUTER_DISTRIBUTION=${{ env.ROUTER_DISTRIBUTION }}
           tags: ${{ env.ROUTER_CONTAINER_IMAGE }}:ci
 
       - name: Build edge image (arm/v7, riscv64)
-        if: hashFiles('Dockerfile.edge') != ''
         uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
         with:
           context: .
@@ -106,4 +110,9 @@ jobs:
           push: false
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          build-args: |
+            OCI_SOURCE_REPO=${{ env.OCI_SOURCE_REPO }}
+            OCI_VERSION=ci
+            OCI_REVISION=${{ github.sha }}
+            ROUTER_DISTRIBUTION=${{ env.ROUTER_DISTRIBUTION }}
           tags: ${{ env.ROUTER_CONTAINER_IMAGE }}:ci-edge
