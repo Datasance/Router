@@ -17,7 +17,7 @@
 
 ### SDK and LocalAPI
 
-- **iofog-go-sdk v3.8.0-beta.4** (`github.com/datasance/iofog-go-sdk/v3`) — interim dependency until eclipse-iofog SDK migration.
+- **iofog-go-sdk v3.8.0-beta.4** (`github.com/eclipse-iofog/iofog-go-sdk/v3`) — interim dependency until eclipse-iofog SDK migration.
 - Pot/iofog mode: ioFog Agent **LocalAPI v3** config fetch and control websocket updates.
 - **`SKUPPER_PLATFORM`**: `pot`, `iofog` (alias), `kubernetes`.
 

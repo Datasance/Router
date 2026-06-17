@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	sdk "github.com/datasance/iofog-go-sdk/v3/pkg/microservices"
+	sdk "github.com/eclipse-iofog/iofog-go-sdk/v3/pkg/microservices"
 	"github.com/eclipse-iofog/router/internal/config"
 	qdr "github.com/eclipse-iofog/router/internal/qdr"
 	rt "github.com/eclipse-iofog/router/internal/router"
@@ -121,14 +121,14 @@ func runKubernetesMode() error {
 }
 
 func runPotMode() error {
-	ioFogClient, clientError := sdk.NewDefaultIoFogClientV3()
+	edgeletClient, clientError := sdk.NewDefaultEdgeletAPIClient()
 	if clientError != nil {
 		return clientError
 	}
-	if err := updateConfig(ioFogClient, router.Config); err != nil {
+	if err := updateConfig(edgeletClient, router.Config); err != nil {
 		return err
 	}
-	confChannel := ioFogClient.EstablishControlWsConnection(0)
+	confChannel := edgeletClient.EstablishControlWsConnection(0)
 	exitChannel := make(chan error)
 	go router.StartRouter(exitChannel)
 	ctx := context.Background()
@@ -149,8 +149,8 @@ func runPotMode() error {
 					TCPConnectors: make(map[string]qdr.TCPEndpoint),
 				},
 			}
-			if err := updateConfig(ioFogClient, newConfig); err != nil {
-				log.Printf("Error updating config from ioFog local API: %v", err)
+			if err := updateConfig(edgeletClient, newConfig); err != nil {
+				log.Printf("Error updating config from EdgeletAPI: %v", err)
 			} else {
 				if err := router.UpdateRouter(newConfig); err != nil {
 					log.Printf("Error updating router: %v", err)
@@ -160,12 +160,12 @@ func runPotMode() error {
 	}
 }
 
-func updateConfig(ioFogClient *sdk.IoFogClient, config any) error {
+func updateConfig(edgeletClient *sdk.EdgeletAPIClient, config any) error {
 	const attemptLimit = 5
 	var lastErr error
 
 	for attempt := 1; attempt <= attemptLimit; attempt++ {
-		lastErr = ioFogClient.GetConfigIntoStruct(config)
+		lastErr = edgeletClient.GetConfigIntoStruct(config)
 		if lastErr == nil {
 			return nil
 		}
@@ -180,9 +180,9 @@ func updateConfig(ioFogClient *sdk.IoFogClient, config any) error {
 	if errors.As(lastErr, &authErr) {
 		return fmt.Errorf("failed to load ioFog service-account auth material: %w", lastErr)
 	}
-	var apiErr *sdk.V3APIError
+	var apiErr *sdk.EdgeletAPIError
 	if errors.As(lastErr, &apiErr) {
-		return fmt.Errorf("ioFog local API returned a v3 error while getting config: %w", lastErr)
+		return fmt.Errorf("EdgeletAPI returned an error while getting config: %w", lastErr)
 	}
 	return fmt.Errorf("update config failed after %d attempts: %w", attemptLimit, lastErr)
 }

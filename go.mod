@@ -3,7 +3,7 @@ module github.com/eclipse-iofog/router
 go 1.26.4
 
 require (
-	github.com/datasance/iofog-go-sdk/v3 v3.8.0-beta.4
+	github.com/eclipse-iofog/iofog-go-sdk/v3 v3.8.0-rc.2
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/interconnectedcloud/go-amqp v0.12.6-0.20200506124159-f51e540008b5
 	gotest.tools/v3 v3.5.2
@@ -21,5 +21,5 @@ require (
 	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	golang.org/x/crypto v0.28.0 // indirect
-	golang.org/x/sys v0.26.0 // indirect
+	golang.org/x/sys v0.45.0 // indirect
 )
