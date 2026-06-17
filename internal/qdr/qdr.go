@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"log"
 	"net"
-	path_ "path"
+	"path"
 	"reflect"
 	"strconv"
 	"strings"
 
-	"github.com/datasance/router/internal/resources/types"
+	types "github.com/eclipse-iofog/router/internal/resources/skuppertypes"
 )
 
 type RouterConfig struct {
@@ -30,19 +30,19 @@ type RouterConfigHandler interface {
 	RemoveRouterConfig() error
 }
 
-type TcpEndpointMap map[string]TcpEndpoint
+type TCPEndpointMap map[string]TCPEndpoint
 
 type BridgeConfig struct {
-	TcpListeners  TcpEndpointMap
-	TcpConnectors TcpEndpointMap
+	TCPListeners  TCPEndpointMap
+	TCPConnectors TCPEndpointMap
 }
 
-func InitialConfig(id string, siteId string, version string, edge bool, helloAge int) RouterConfig {
+func InitialConfig(id string, siteID string, version string, edge bool, helloAge int) RouterConfig {
 	config := RouterConfig{
 		Metadata: RouterMetadata{
-			Id:                 id,
+			ID:                 id,
 			HelloMaxAgeSeconds: strconv.Itoa(helloAge),
-			Metadata:           getSiteMetadataString(siteId, version),
+			Metadata:           getSiteMetadataString(siteID, version),
 		},
 		Addresses:   map[string]Address{},
 		SslProfiles: map[string]SslProfile{},
@@ -50,8 +50,8 @@ func InitialConfig(id string, siteId string, version string, edge bool, helloAge
 		Connectors:  map[string]Connector{},
 		LogConfig:   map[string]LogConfig{},
 		Bridges: BridgeConfig{
-			TcpListeners:  map[string]TcpEndpoint{},
-			TcpConnectors: map[string]TcpEndpoint{},
+			TCPListeners:  map[string]TCPEndpoint{},
+			TCPConnectors: map[string]TCPEndpoint{},
 		},
 	}
 	if edge {
@@ -66,8 +66,8 @@ func (r *RouterConfig) AddHealthAndMetricsListener(port int32) {
 	r.AddListener(Listener{
 		Port:        port,
 		Role:        "normal",
-		Http:        true,
-		HttpRootDir: "disabled",
+		HTTP:        true,
+		HTTPRootDir: "disabled",
 		Websockets:  false,
 		Healthz:     true,
 		Metrics:     true,
@@ -76,18 +76,18 @@ func (r *RouterConfig) AddHealthAndMetricsListener(port int32) {
 
 func NewBridgeConfig() BridgeConfig {
 	return BridgeConfig{
-		TcpListeners:  map[string]TcpEndpoint{},
-		TcpConnectors: map[string]TcpEndpoint{},
+		TCPListeners:  map[string]TCPEndpoint{},
+		TCPConnectors: map[string]TCPEndpoint{},
 	}
 }
 
 func NewBridgeConfigCopy(src BridgeConfig) BridgeConfig {
 	newBridges := NewBridgeConfig()
-	for k, v := range src.TcpListeners {
-		newBridges.TcpListeners[k] = v
+	for k, v := range src.TCPListeners {
+		newBridges.TCPListeners[k] = v
 	}
-	for k, v := range src.TcpConnectors {
-		newBridges.TcpConnectors[k] = v
+	for k, v := range src.TCPConnectors {
+		newBridges.TCPConnectors[k] = v
 	}
 	return newBridges
 }
@@ -108,9 +108,8 @@ func (r *RouterConfig) RemoveListener(name string) (bool, Listener) {
 	if ok {
 		delete(r.Listeners, name)
 		return true, c
-	} else {
-		return false, Listener{}
 	}
+	return false, Listener{}
 }
 
 func (r *RouterConfig) AddConnector(c Connector) bool {
@@ -126,9 +125,8 @@ func (r *RouterConfig) RemoveConnector(name string) (bool, Connector) {
 	if ok {
 		delete(r.Connectors, name)
 		return true, c
-	} else {
-		return false, Connector{}
 	}
+	return false, Connector{}
 }
 
 func (r *RouterConfig) IsEdge() bool {
@@ -137,14 +135,14 @@ func (r *RouterConfig) IsEdge() bool {
 
 // ConfigureSslProfile builds an SslProfile with file paths under the given base path.
 // For the default SSL profile directory, use config.GetSSLProfilePath().
-func ConfigureSslProfile(name string, path string, clientAuth bool) SslProfile {
+func ConfigureSslProfile(name string, basePath string, clientAuth bool) SslProfile {
 	profile := SslProfile{
 		Name:       name,
-		CaCertFile: path_.Join(path, name, "ca.crt"),
+		CaCertFile: path.Join(basePath, name, "ca.crt"),
 	}
 	if clientAuth {
-		profile.CertFile = path_.Join(path, name, "tls.crt")
-		profile.PrivateKeyFile = path_.Join(path, name, "tls.key")
+		profile.CertFile = path.Join(basePath, name, "tls.crt")
+		profile.PrivateKeyFile = path.Join(basePath, name, "tls.key")
 	}
 	return profile
 }
@@ -162,9 +160,8 @@ func (r *RouterConfig) RemoveSslProfile(name string) bool {
 	if ok {
 		delete(r.SslProfiles, name)
 		return true
-	} else {
-		return false
 	}
+	return false
 }
 
 func (r *RouterConfig) RemoveUnreferencedSslProfiles() bool {
@@ -183,17 +180,17 @@ func (r *RouterConfig) UnreferencedSslProfiles() map[string]SslProfile {
 	for _, profile := range r.SslProfiles {
 		results[profile.Name] = profile
 	}
-	//remove any that are referenced
+	// remove any that are referenced
 	for _, o := range r.Listeners {
 		delete(results, o.SslProfile)
 	}
 	for _, o := range r.Connectors {
 		delete(results, o.SslProfile)
 	}
-	for _, o := range r.Bridges.TcpListeners {
+	for _, o := range r.Bridges.TCPListeners {
 		delete(results, o.SslProfile)
 	}
-	for _, o := range r.Bridges.TcpConnectors {
+	for _, o := range r.Bridges.TCPConnectors {
 		delete(results, o.SslProfile)
 	}
 
@@ -204,29 +201,28 @@ func (r *RouterConfig) AddAddress(a Address) {
 	r.Addresses[a.Prefix] = a
 }
 
-func (r *RouterConfig) AddTcpConnector(e TcpEndpoint) {
-	r.Bridges.AddTcpConnector(e)
+func (r *RouterConfig) AddTCPConnector(e TCPEndpoint) {
+	r.Bridges.AddTCPConnector(e)
 }
 
-func (r *RouterConfig) RemoveTcpConnector(name string) (bool, TcpEndpoint) {
-	return r.Bridges.RemoveTcpConnector(name)
+func (r *RouterConfig) RemoveTCPConnector(name string) (bool, TCPEndpoint) {
+	return r.Bridges.RemoveTCPConnector(name)
 }
 
-func (r *RouterConfig) AddTcpListener(e TcpEndpoint) {
-	r.Bridges.AddTcpListener(e)
+func (r *RouterConfig) AddTCPListener(e TCPEndpoint) {
+	r.Bridges.AddTCPListener(e)
 }
 
-func (r *RouterConfig) RemoveTcpListener(name string) (bool, TcpEndpoint) {
-	return r.Bridges.RemoveTcpListener(name)
+func (r *RouterConfig) RemoveTCPListener(name string) (bool, TCPEndpoint) {
+	return r.Bridges.RemoveTCPListener(name)
 }
 
 func (r *RouterConfig) UpdateBridgeConfig(desired BridgeConfig) bool {
 	if reflect.DeepEqual(r.Bridges, desired) {
 		return false
-	} else {
-		r.Bridges = desired
-		return true
 	}
+	r.Bridges = desired
+	return true
 }
 
 func (r *RouterConfig) GetSiteMetadata() SiteMetadata {
@@ -234,41 +230,39 @@ func (r *RouterConfig) GetSiteMetadata() SiteMetadata {
 }
 
 func (r *RouterConfig) SetSiteMetadata(site *SiteMetadata) {
-	r.Metadata.Metadata = getSiteMetadataString(site.Id, site.Version)
+	r.Metadata.Metadata = getSiteMetadataString(site.ID, site.Version)
 }
 
-func (bc *BridgeConfig) AddTcpConnector(e TcpEndpoint) {
-	bc.TcpConnectors[e.Name] = e
+func (bc *BridgeConfig) AddTCPConnector(e TCPEndpoint) {
+	bc.TCPConnectors[e.Name] = e
 }
 
-func (bc *BridgeConfig) RemoveTcpConnector(name string) (bool, TcpEndpoint) {
-	tc, ok := bc.TcpConnectors[name]
+func (bc *BridgeConfig) RemoveTCPConnector(name string) (bool, TCPEndpoint) {
+	tc, ok := bc.TCPConnectors[name]
 	if ok {
-		delete(bc.TcpConnectors, name)
+		delete(bc.TCPConnectors, name)
 		return true, tc
-	} else {
-		return false, TcpEndpoint{}
 	}
+	return false, TCPEndpoint{}
 }
 
-func (bc *BridgeConfig) AddTcpListener(e TcpEndpoint) {
-	bc.TcpListeners[e.Name] = e
+func (bc *BridgeConfig) AddTCPListener(e TCPEndpoint) {
+	bc.TCPListeners[e.Name] = e
 }
 
-func (bc *BridgeConfig) RemoveTcpListener(name string) (bool, TcpEndpoint) {
-	tc, ok := bc.TcpListeners[name]
+func (bc *BridgeConfig) RemoveTCPListener(name string) (bool, TCPEndpoint) {
+	tc, ok := bc.TCPListeners[name]
 	if ok {
-		delete(bc.TcpListeners, name)
+		delete(bc.TCPListeners, name)
 		return true, tc
-	} else {
-		return false, TcpEndpoint{}
 	}
+	return false, TCPEndpoint{}
 }
 
-func GetTcpConnectors(bridges []BridgeConfig) []TcpEndpoint {
-	connectors := []TcpEndpoint{}
+func GetTCPConnectors(bridges []BridgeConfig) []TCPEndpoint {
+	connectors := []TCPEndpoint{}
 	for _, bridge := range bridges {
-		for _, connector := range bridge.TcpConnectors {
+		for _, connector := range bridge.TCPConnectors {
 			connectors = append(connectors, connector)
 		}
 	}
@@ -300,12 +294,11 @@ func (r *RouterConfig) SetLogLevel(module string, level string) bool {
 
 func (r *RouterConfig) SetLogLevels(levels map[string]string) bool {
 	keys := map[string]bool{}
-	for k, _ := range levels {
+	for k := range levels {
 		if k == "" {
-			keys["DEFAULT"] = true
-		} else {
-			keys[k] = true
+			k = "DEFAULT"
 		}
+		keys[k] = true
 	}
 	changed := false
 	for name, level := range levels {
@@ -313,7 +306,7 @@ func (r *RouterConfig) SetLogLevels(levels map[string]string) bool {
 			changed = true
 		}
 	}
-	for key, _ := range r.LogConfig {
+	for key := range r.LogConfig {
 		if _, ok := keys[key]; !ok {
 			delete(r.LogConfig, key)
 			changed = true
@@ -326,9 +319,9 @@ type Role string
 
 const (
 	RoleInterRouter Role = "inter-router"
-	RoleEdge             = "edge"
-	RoleNormal           = "normal"
-	RoleDefault          = ""
+	RoleEdge        Role = "edge"
+	RoleNormal      Role = "normal"
+	RoleDefault     Role = ""
 )
 
 func asRole(name string) Role {
@@ -345,9 +338,10 @@ func asRole(name string) Role {
 }
 
 func GetRole(name string) Role {
-	if name == "edge" {
+	switch name {
+	case "edge":
 		return RoleEdge
-	} else if name == "normal" {
+	case "normal":
 		return RoleNormal
 	}
 	return RoleInterRouter
@@ -357,11 +351,11 @@ type Mode string
 
 const (
 	ModeInterior Mode = "interior"
-	ModeEdge          = "edge"
+	ModeEdge     Mode = "edge"
 )
 
 type RouterMetadata struct {
-	Id                  string `json:"id,omitempty"`
+	ID                  string `json:"id,omitempty"`
 	Mode                Mode   `json:"mode,omitempty"`
 	HelloMaxAgeSeconds  string `json:"helloMaxAgeSeconds,omitempty"`
 	DataConnectionCount string `json:"dataConnectionCount,omitempty"`
@@ -403,13 +397,13 @@ type Listener struct {
 	Host             string `json:"host,omitempty" yaml:"host,omitempty"`
 	Port             int32  `json:"port" yaml:"port,omitempty"`
 	RouteContainer   bool   `json:"routeContainer,omitempty" yaml:"route-container,omitempty"`
-	Http             bool   `json:"http,omitempty" yaml:"http,omitempty"`
+	HTTP             bool   `json:"http,omitempty" yaml:"http,omitempty"`
 	Cost             int32  `json:"cost,omitempty" yaml:"cost,omitempty"`
 	SslProfile       string `json:"sslProfile,omitempty" yaml:"ssl-profile,omitempty"`
 	SaslMechanisms   string `json:"saslMechanisms,omitempty" yaml:"sasl-mechanisms,omitempty"`
 	AuthenticatePeer bool   `json:"authenticatePeer,omitempty" yaml:"authenticate-peer,omitempty"`
 	LinkCapacity     int32  `json:"linkCapacity,omitempty" yaml:"link-capacity,omitempty"`
-	HttpRootDir      string `json:"httpRootDir,omitempty" yaml:"http-rootdir,omitempty"`
+	HTTPRootDir      string `json:"httpRootDir,omitempty" yaml:"http-rootdir,omitempty"`
 	Websockets       bool   `json:"websockets,omitempty" yaml:"web-sockets,omitempty"`
 	Healthz          bool   `json:"healthz,omitempty" yaml:"healthz,omitempty"`
 	Metrics          bool   `json:"metrics,omitempty" yaml:"metrics,omitempty"`
@@ -447,11 +441,11 @@ func (listener Listener) toRecord() Record {
 	if listener.RouteContainer {
 		record["routeContainer"] = listener.RouteContainer
 	}
-	if listener.Http {
-		record["http"] = listener.Http
+	if listener.HTTP {
+		record["http"] = listener.HTTP
 	}
-	if len(listener.HttpRootDir) > 0 {
-		record["httpRootDir"] = listener.HttpRootDir
+	if len(listener.HTTPRootDir) > 0 {
+		record["httpRootDir"] = listener.HTTPRootDir
 	}
 	if listener.Websockets {
 		record["websockets"] = listener.Websockets
@@ -465,12 +459,12 @@ func (listener Listener) toRecord() Record {
 
 	return record
 }
-func (l *Listener) SetMaxFrameSize(value int) {
-	l.MaxFrameSize = value
+func (listener *Listener) SetMaxFrameSize(value int) {
+	listener.MaxFrameSize = value
 }
 
-func (l *Listener) SetMaxSessionFrames(value int) {
-	l.MaxSessionFrames = value
+func (listener *Listener) SetMaxSessionFrames(value int) {
+	listener.MaxSessionFrames = value
 }
 
 type Connector struct {
@@ -508,20 +502,20 @@ func (connector Connector) toRecord() Record {
 	return record
 }
 
-func (c *Connector) SetMaxFrameSize(value int) {
-	c.MaxFrameSize = value
+func (connector *Connector) SetMaxFrameSize(value int) {
+	connector.MaxFrameSize = value
 }
 
-func (c *Connector) SetMaxSessionFrames(value int) {
-	c.MaxSessionFrames = value
+func (connector *Connector) SetMaxSessionFrames(value int) {
+	connector.MaxSessionFrames = value
 }
 
 type Distribution string
 
 const (
 	DistributionBalanced  Distribution = "balanced"
-	DistributionMulticast              = "multicast"
-	DistributionClosest                = "closest"
+	DistributionMulticast Distribution = "multicast"
+	DistributionClosest   Distribution = "closest"
 )
 
 type Address struct {
@@ -529,18 +523,18 @@ type Address struct {
 	Distribution string `json:"distribution,omitempty"`
 }
 
-type TcpEndpoint struct {
+type TCPEndpoint struct {
 	Name           string `json:"name,omitempty"`
 	Host           string `json:"host,omitempty"`
 	Port           string `json:"port,omitempty"`
 	Address        string `json:"address,omitempty"`
-	SiteId         string `json:"siteId,omitempty"`
+	SiteID         string `json:"siteID,omitempty"`
 	SslProfile     string `json:"sslProfile,omitempty"`
 	VerifyHostname *bool  `json:"verifyHostname,omitempty"`
 	ProcessID      string `json:"processId,omitempty"`
 }
 
-func (e TcpEndpoint) toRecord() Record {
+func (e TCPEndpoint) toRecord() Record {
 	result := make(map[string]any)
 	if e.Name != "" {
 		result["name"] = e.Name
@@ -554,8 +548,8 @@ func (e TcpEndpoint) toRecord() Record {
 	if e.Address != "" {
 		result["address"] = e.Address
 	}
-	if e.SiteId != "" {
-		result["siteId"] = e.SiteId
+	if e.SiteID != "" {
+		result["siteID"] = e.SiteID
 	}
 	if e.SslProfile != "" {
 		result["sslProfile"] = e.SslProfile
@@ -578,7 +572,7 @@ type SiteConfig struct {
 	Version   string `json:"version,omitempty"`
 }
 
-func convert(from interface{}, to interface{}) error {
+func convert(from any, to any) error {
 	data, err := json.Marshal(from)
 	if err != nil {
 		return err
@@ -611,92 +605,92 @@ func UnmarshalRouterConfig(config string) (RouterConfig, error) {
 		Connectors:  map[string]Connector{},
 		LogConfig:   map[string]LogConfig{},
 		Bridges: BridgeConfig{
-			TcpListeners:  map[string]TcpEndpoint{},
-			TcpConnectors: map[string]TcpEndpoint{},
+			TCPListeners:  map[string]TCPEndpoint{},
+			TCPConnectors: map[string]TCPEndpoint{},
 		},
 	}
-	var obj interface{}
+	var obj any
 	err := json.Unmarshal([]byte(config), &obj)
 	if err != nil {
 		return result, err
 	}
-	elements, ok := obj.([]interface{})
+	elements, ok := obj.([]any)
 	if !ok {
-		return result, fmt.Errorf("Invalid JSON for router configuration, expected array at top level got %#v", obj)
+		return result, fmt.Errorf("invalid JSON for router configuration, expected array at top level got %#v", obj)
 	}
 	for _, e := range elements {
-		element, ok := e.([]interface{})
+		element, ok := e.([]any)
 		if !ok || len(element) != 2 {
-			return result, fmt.Errorf("Invalid JSON for router configuration, expected array with type and value got %#v", e)
+			return result, fmt.Errorf("invalid JSON for router configuration, expected array with type and value got %#v", e)
 		}
 		entityType, ok := element[0].(string)
 		if !ok {
-			return result, fmt.Errorf("Invalid JSON for router configuration, expected entity type as string got %#v", element[0])
+			return result, fmt.Errorf("invalid JSON for router configuration, expected entity type as string got %#v", element[0])
 		}
 		switch entityType {
 		case "router":
 			metadata := RouterMetadata{}
 			err = convert(element[1], &metadata)
 			if err != nil {
-				return result, fmt.Errorf("Invalid %s element got %#v", entityType, element[1])
+				return result, fmt.Errorf("invalid %s element got %#v", entityType, element[1])
 			}
 			result.Metadata = metadata
 		case "address":
 			address := Address{}
 			err = convert(element[1], &address)
 			if err != nil {
-				return result, fmt.Errorf("Invalid %s element got %#v", entityType, element[1])
+				return result, fmt.Errorf("invalid %s element got %#v", entityType, element[1])
 			}
 			result.Addresses[address.Prefix] = address
 		case "connector":
 			connector := Connector{}
 			err = convert(element[1], &connector)
 			if err != nil {
-				return result, fmt.Errorf("Invalid %s element got %#v", entityType, element[1])
+				return result, fmt.Errorf("invalid %s element got %#v", entityType, element[1])
 			}
 			result.Connectors[connector.Name] = connector
 		case "listener":
 			listener := Listener{}
 			err = convert(element[1], &listener)
 			if err != nil {
-				return result, fmt.Errorf("Invalid %s element got %#v", entityType, element[1])
+				return result, fmt.Errorf("invalid %s element got %#v", entityType, element[1])
 			}
 			result.Listeners[listener.Name] = listener
 		case "sslProfile":
 			sslProfile := SslProfile{}
 			err = convert(element[1], &sslProfile)
 			if err != nil {
-				return result, fmt.Errorf("Invalid %s element got %#v", entityType, element[1])
+				return result, fmt.Errorf("invalid %s element got %#v", entityType, element[1])
 			}
 			result.SslProfiles[sslProfile.Name] = sslProfile
 		case "log":
 			logConfig := LogConfig{}
 			err = convert(element[1], &logConfig)
 			if err != nil {
-				return result, fmt.Errorf("Invalid %s element got %#v", entityType, element[1])
+				return result, fmt.Errorf("invalid %s element got %#v", entityType, element[1])
 			}
 			result.LogConfig[logConfig.Module] = logConfig
 		case "site":
 			siteConfig := &SiteConfig{}
 			err = convert(element[1], siteConfig)
 			if err != nil {
-				return result, fmt.Errorf("Invalid %s element got %#v", entityType, element[1])
+				return result, fmt.Errorf("invalid %s element got %#v", entityType, element[1])
 			}
 			result.SiteConfig = siteConfig
 		case "tcpConnector":
-			connector := TcpEndpoint{}
+			connector := TCPEndpoint{}
 			err = convert(element[1], &connector)
 			if err != nil {
-				return result, fmt.Errorf("Invalid %s element got %#v", entityType, element[1])
+				return result, fmt.Errorf("invalid %s element got %#v", entityType, element[1])
 			}
-			result.Bridges.TcpConnectors[connector.Name] = connector
+			result.Bridges.TCPConnectors[connector.Name] = connector
 		case "tcpListener":
-			listener := TcpEndpoint{}
+			listener := TCPEndpoint{}
 			err = convert(element[1], &listener)
 			if err != nil {
-				return result, fmt.Errorf("Invalid %s element got %#v", entityType, element[1])
+				return result, fmt.Errorf("invalid %s element got %#v", entityType, element[1])
 			}
-			result.Bridges.TcpListeners[listener.Name] = listener
+			result.Bridges.TCPListeners[listener.Name] = listener
 		default:
 		}
 	}
@@ -704,63 +698,63 @@ func UnmarshalRouterConfig(config string) (RouterConfig, error) {
 }
 
 func MarshalRouterConfig(config RouterConfig) (string, error) {
-	elements := [][]interface{}{}
-	tuple := []interface{}{
+	elements := [][]any{}
+	tuple := []any{
 		"router",
 		config.Metadata,
 	}
 	elements = append(elements, tuple)
 	for _, e := range config.SslProfiles {
-		tuple := []interface{}{
+		tuple := []any{
 			"sslProfile",
 			e,
 		}
 		elements = append(elements, tuple)
 	}
 	for _, e := range config.Connectors {
-		tuple := []interface{}{
+		tuple := []any{
 			"connector",
 			e,
 		}
 		elements = append(elements, tuple)
 	}
 	for _, e := range config.Listeners {
-		tuple := []interface{}{
+		tuple := []any{
 			"listener",
 			e,
 		}
 		elements = append(elements, tuple)
 	}
 	for _, e := range config.Addresses {
-		tuple := []interface{}{
+		tuple := []any{
 			"address",
 			e,
 		}
 		elements = append(elements, tuple)
 	}
-	for _, e := range config.Bridges.TcpConnectors {
-		tuple := []interface{}{
+	for _, e := range config.Bridges.TCPConnectors {
+		tuple := []any{
 			"tcpConnector",
 			e,
 		}
 		elements = append(elements, tuple)
 	}
-	for _, e := range config.Bridges.TcpListeners {
-		tuple := []interface{}{
+	for _, e := range config.Bridges.TCPListeners {
+		tuple := []any{
 			"tcpListener",
 			e,
 		}
 		elements = append(elements, tuple)
 	}
 	for _, e := range config.LogConfig {
-		tuple := []interface{}{
+		tuple := []any{
 			"log",
 			e,
 		}
 		elements = append(elements, tuple)
 	}
 	if config.SiteConfig != nil {
-		tuple := []interface{}{
+		tuple := []any{
 			"site",
 			*config.SiteConfig,
 		}
@@ -781,11 +775,11 @@ func AsConfigMapData(config string) map[string]string {
 
 func (r *RouterConfig) AsConfigMapData() (map[string]string, error) {
 	result := map[string]string{}
-	marshalled, err := MarshalRouterConfig(*r)
+	marshaled, err := MarshalRouterConfig(*r)
 	if err != nil {
 		return result, err
 	}
-	result[types.TransportConfigFile] = marshalled
+	result[types.TransportConfigFile] = marshaled
 	return result, nil
 }
 
@@ -805,8 +799,8 @@ func FilterListeners(in map[string]Listener, predicate ListenerPredicate) map[st
 	return results
 }
 
-func (config *RouterConfig) GetMatchingListeners(predicate ListenerPredicate) map[string]Listener {
-	return FilterListeners(config.Listeners, predicate)
+func (r *RouterConfig) GetMatchingListeners(predicate ListenerPredicate) map[string]Listener {
+	return FilterListeners(r.Listeners, predicate)
 }
 
 type ConnectorDifference struct {
@@ -815,14 +809,14 @@ type ConnectorDifference struct {
 	AddedSslProfiles map[string]SslProfile
 }
 
-type TcpEndpointDifference struct {
+type TCPEndpointDifference struct {
 	Deleted []string
-	Added   []TcpEndpoint
+	Added   []TCPEndpoint
 }
 
 type BridgeConfigDifference struct {
-	TcpListeners       TcpEndpointDifference
-	TcpConnectors      TcpEndpointDifference
+	TCPListeners       TCPEndpointDifference
+	TCPConnectors      TCPEndpointDifference
 	AddedSslProfiles   []string
 	DeletedSSlProfiles []string
 }
@@ -833,37 +827,39 @@ func isAddrAny(host string) bool {
 }
 
 func equivalentHost(a string, b string) bool {
-	if a == b {
+	switch a {
+	case b:
 		return true
-	} else if a == "" {
+	case "":
 		return isAddrAny(b)
-	} else if b == "" {
-		return isAddrAny(a)
-	} else {
+	default:
+		if b == "" {
+			return isAddrAny(a)
+		}
 		return false
 	}
 }
 
-func (a TcpEndpoint) equivalentVerifyHostname(b TcpEndpoint) bool {
-	if a.VerifyHostname == nil {
-		return b.VerifyHostname == nil || *b.VerifyHostname == true
+func (e TCPEndpoint) equivalentVerifyHostname(b TCPEndpoint) bool {
+	if e.VerifyHostname == nil {
+		return b.VerifyHostname == nil || *b.VerifyHostname
 	}
 	if b.VerifyHostname == nil {
-		return a.VerifyHostname == nil || *a.VerifyHostname == true
+		return e.VerifyHostname == nil || *e.VerifyHostname
 	}
-	return *a.VerifyHostname == *b.VerifyHostname
+	return *e.VerifyHostname == *b.VerifyHostname
 }
 
-func (a TcpEndpoint) Equivalent(b TcpEndpoint) bool {
-	if !equivalentHost(a.Host, b.Host) || a.Port != b.Port || a.Address != b.Address ||
-		a.SiteId != b.SiteId || a.ProcessID != b.ProcessID || !a.equivalentVerifyHostname(b) {
+func (e TCPEndpoint) Equivalent(b TCPEndpoint) bool {
+	if !equivalentHost(e.Host, b.Host) || e.Port != b.Port || e.Address != b.Address ||
+		e.SiteID != b.SiteID || e.ProcessID != b.ProcessID || !e.equivalentVerifyHostname(b) {
 		return false
 	}
 	return true
 }
 
-func (a TcpEndpointMap) Difference(b TcpEndpointMap) TcpEndpointDifference {
-	result := TcpEndpointDifference{}
+func (a TCPEndpointMap) Difference(b TCPEndpointMap) TCPEndpointDifference {
+	result := TCPEndpointDifference{}
 	for key, v1 := range b {
 		v2, ok := a[key]
 		if !ok {
@@ -882,13 +878,13 @@ func (a TcpEndpointMap) Difference(b TcpEndpointMap) TcpEndpointDifference {
 	return result
 }
 
-func (a *BridgeConfig) Difference(b *BridgeConfig) *BridgeConfigDifference {
+func (bc *BridgeConfig) Difference(b *BridgeConfig) *BridgeConfigDifference {
 	result := BridgeConfigDifference{
-		TcpConnectors: a.TcpConnectors.Difference(b.TcpConnectors),
-		TcpListeners:  a.TcpListeners.Difference(b.TcpListeners),
+		TCPConnectors: bc.TCPConnectors.Difference(b.TCPConnectors),
+		TCPListeners:  bc.TCPListeners.Difference(b.TCPListeners),
 	}
 
-	result.AddedSslProfiles, result.DeletedSSlProfiles = getSslProfilesDifference(a, b)
+	result.AddedSslProfiles, result.DeletedSSlProfiles = getSslProfilesDifference(bc, b)
 
 	return &result
 }
@@ -903,21 +899,21 @@ func getSslProfilesDifference(before *BridgeConfig, desired *BridgeConfig) (Adde
 	originalSslConfig := make(map[string]string)
 	newSslConfig := make(map[string]string)
 
-	for _, tcpConnector := range before.TcpConnectors {
+	for _, tcpConnector := range before.TCPConnectors {
 		originalSslConfig[tcpConnector.SslProfile] = tcpConnector.SslProfile
 	}
-	for _, tcpListener := range before.TcpListeners {
+	for _, tcpListener := range before.TCPListeners {
 		originalSslConfig[tcpListener.SslProfile] = tcpListener.SslProfile
 	}
 
-	for _, tcpConnector := range desired.TcpConnectors {
+	for _, tcpConnector := range desired.TCPConnectors {
 		newSslConfig[tcpConnector.SslProfile] = tcpConnector.SslProfile
 	}
-	for _, tcpListener := range desired.TcpListeners {
+	for _, tcpListener := range desired.TCPListeners {
 		newSslConfig[tcpListener.SslProfile] = tcpListener.SslProfile
 	}
 
-	//Auto-generated Skupper certs will be deleted if they are not used in the desired configuration
+	// Auto-generated Skupper certs will be deleted if they are not used in the desired configuration
 	for key, name := range originalSslConfig {
 		_, ok := newSslConfig[key]
 
@@ -926,7 +922,7 @@ func getSslProfilesDifference(before *BridgeConfig, desired *BridgeConfig) (Adde
 		}
 	}
 
-	//New profiles associated with http or tcp connectors/listeners will be created in the router
+	// New profiles associated with http or tcp connectors/listeners will be created in the router
 	for key, name := range newSslConfig {
 		_, ok := originalSslConfig[key]
 
@@ -942,17 +938,17 @@ func isGeneratedBySkupper(name string) bool {
 	return strings.HasPrefix(name, types.SkupperServiceCertPrefix) && name != types.ServiceClientSecret
 }
 
-func (a *TcpEndpointDifference) Empty() bool {
+func (a *TCPEndpointDifference) Empty() bool {
 	return len(a.Deleted) == 0 && len(a.Added) == 0
 }
 
 func (a *BridgeConfigDifference) Empty() bool {
-	return a.TcpConnectors.Empty() && a.TcpListeners.Empty()
+	return a.TCPConnectors.Empty() && a.TCPListeners.Empty()
 }
 
 func (a *BridgeConfigDifference) Print() {
-	log.Printf("TcpConnectors added=%v, deleted=%v", a.TcpConnectors.Added, a.TcpConnectors.Deleted)
-	log.Printf("TcpListeners added=%v, deleted=%v", a.TcpListeners.Added, a.TcpListeners.Deleted)
+	log.Printf("TCPConnectors added=%v, deleted=%v", a.TCPConnectors.Added, a.TCPConnectors.Deleted)
+	log.Printf("TCPListeners added=%v, deleted=%v", a.TCPListeners.Added, a.TCPListeners.Deleted)
 	log.Printf("SslProfiles added=%v, deleted=%v", a.AddedSslProfiles, a.DeletedSSlProfiles)
 }
 
@@ -990,24 +986,24 @@ type ListenerDifference struct {
 	Added   []Listener
 }
 
-func (desired Listener) Equivalent(actual Listener) bool {
-	return desired.Name == actual.Name &&
-		desired.Role == actual.Role &&
-		desired.Host == actual.Host &&
-		desired.Port == actual.Port &&
-		desired.RouteContainer == actual.RouteContainer &&
-		desired.Http == actual.Http &&
-		desired.SslProfile == actual.SslProfile &&
-		desired.SaslMechanisms == actual.SaslMechanisms &&
-		desired.AuthenticatePeer == actual.AuthenticatePeer &&
-		(desired.Cost == 0 || desired.Cost == actual.Cost) &&
-		(desired.MaxFrameSize == 0 || desired.MaxFrameSize == actual.MaxFrameSize) &&
-		(desired.MaxSessionFrames == 0 || desired.MaxSessionFrames == actual.MaxSessionFrames) &&
-		(desired.LinkCapacity == 0 || desired.LinkCapacity == actual.LinkCapacity) &&
-		(desired.HttpRootDir == "" || desired.HttpRootDir == actual.HttpRootDir)
-	//Skip check for Websockets, Healthz and Metrics as they are
-	//always coming back as true at present and are not used where
-	//this method is required at present.
+func (listener Listener) Equivalent(actual Listener) bool {
+	return listener.Name == actual.Name &&
+		listener.Role == actual.Role &&
+		listener.Host == actual.Host &&
+		listener.Port == actual.Port &&
+		listener.RouteContainer == actual.RouteContainer &&
+		listener.HTTP == actual.HTTP &&
+		listener.SslProfile == actual.SslProfile &&
+		listener.SaslMechanisms == actual.SaslMechanisms &&
+		listener.AuthenticatePeer == actual.AuthenticatePeer &&
+		(listener.Cost == 0 || listener.Cost == actual.Cost) &&
+		(listener.MaxFrameSize == 0 || listener.MaxFrameSize == actual.MaxFrameSize) &&
+		(listener.MaxSessionFrames == 0 || listener.MaxSessionFrames == actual.MaxSessionFrames) &&
+		(listener.LinkCapacity == 0 || listener.LinkCapacity == actual.LinkCapacity) &&
+		(listener.HTTPRootDir == "" || listener.HTTPRootDir == actual.HTTPRootDir)
+	// Skip check for Websockets, Healthz and Metrics as they are
+	// always coming back as true at present and are not used where
+	// this method is required at present.
 }
 
 func ListenersDifference(actual map[string]Listener, desired map[string]Listener) *ListenerDifference {
@@ -1036,8 +1032,8 @@ func (a *ListenerDifference) Empty() bool {
 	return len(a.Deleted) == 0 && len(a.Added) == 0
 }
 
-// func GetRouterConfigForHeadlessProxy(definition types.ServiceInterface, siteId string, version string, namespace string, profilePath string) (string, error) {
-// 	config := InitialConfig("${HOSTNAME}-"+siteId, siteId, version, true, 3)
+// func GetRouterConfigForHeadlessProxy(definition types.ServiceInterface, siteID string, version string, namespace string, profilePath string) (string, error) {
+// 	config := InitialConfig("${HOSTNAME}-"+siteID, siteID, version, true, 3)
 // 	// add edge-connector
 // 	config.AddSslProfile(ConfigureSslProfile(types.InterRouterProfile, profilePath, true))
 // 	config.AddConnector(Connector{
@@ -1069,12 +1065,12 @@ func (a *ListenerDifference) Empty() bool {
 // 			// in the originating site, just have egress bindings
 // 			switch definition.Protocol {
 // 			case "tcp":
-// 				config.AddTcpConnector(TcpEndpoint{
+// 				config.AddTCPConnector(TCPEndpoint{
 // 					Name:    name,
 // 					Host:    host,
 // 					Port:    strconv.Itoa(ePort),
 // 					Address: address,
-// 					SiteId:  siteId,
+// 					SiteID:  siteID,
 // 				})
 // 			default:
 // 			}
@@ -1083,11 +1079,11 @@ func (a *ListenerDifference) Empty() bool {
 // 			// in all other sites, just have ingress bindings
 // 			switch definition.Protocol {
 // 			case "tcp":
-// 				config.AddTcpListener(TcpEndpoint{
+// 				config.AddTCPListener(TCPEndpoint{
 // 					Name:    name,
 // 					Port:    strconv.Itoa(iPort),
 // 					Address: address,
-// 					SiteId:  siteId,
+// 					SiteID:  siteID,
 // 				})
 // 			default:
 // 			}

@@ -12,14 +12,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package types
+package skuppertypes
 
 import (
 	"time"
 )
 
 const (
-	ENV_PLATFORM      = "SKUPPER_PLATFORM"
+	EnvPlatform       = "SKUPPER_PLATFORM"
 	EnvSSLProfilePath = "SSL_PROFILE_PATH"
 )
 
@@ -115,9 +115,9 @@ const (
 	TargetServiceQualifier      string = BaseQualifier + "/target"
 	HeadlessQualifier           string = BaseQualifier + "/headless"
 	IngressModeQualifier        string = BaseQualifier + "/ingress"
-	CpuRequestAnnotation        string = BaseQualifier + "/cpu-request"
+	CPURequestAnnotation        string = BaseQualifier + "/cpu-request"
 	MemoryRequestAnnotation     string = BaseQualifier + "/memory-request"
-	CpuLimitAnnotation          string = BaseQualifier + "/cpu-limit"
+	CPULimitAnnotation          string = BaseQualifier + "/cpu-limit"
 	MemoryLimitAnnotation       string = BaseQualifier + "/memory-limit"
 	AffinityAnnotation          string = BaseQualifier + "/affinity"
 	AntiAffinityAnnotation      string = BaseQualifier + "/anti-affinity"
@@ -141,7 +141,7 @@ const (
 	TypeTokenRequestQualifier   string = BaseQualifier + "/type=connection-token-request"
 	TokenGeneratedBy            string = BaseQualifier + "/generated-by"
 	SiteVersion                 string = BaseQualifier + "/site-version"
-	SiteId                      string = BaseQualifier + "/site-id"
+	SiteID                      string = BaseQualifier + "/site-id"
 	TokenCost                   string = BaseQualifier + "/cost"
 	TokenTemplate               string = BaseQualifier + "/token-template"
 	UpdatedAnnotation           string = InternalQualifier + "/updated"
@@ -155,7 +155,7 @@ const (
 	ClaimExpiration             string = BaseQualifier + "/claim-expiration"
 	ClaimsRemaining             string = BaseQualifier + "/claims-remaining"
 	ClaimsMade                  string = BaseQualifier + "/claims-made"
-	ClaimUrlAnnotationKey       string = BaseQualifier + "/url"
+	ClaimURLAnnotationKey       string = BaseQualifier + "/url"
 	ClaimPasswordDataKey        string = "password"
 	ClaimCaCertDataKey          string = "ca.crt"
 	ClaimRequestSelector        string = SkupperTypeQualifier + "=" + TypeClaimRequest
@@ -163,8 +163,8 @@ const (
 	StatusAnnotationKey         string = InternalQualifier + "/status"
 	GatewayQualifier            string = InternalQualifier + "/gateway"
 	IngressOnlyQualifier        string = BaseQualifier + "/ingress-only"
-	TlsCertQualifier            string = BaseQualifier + "/tls-cert"
-	TlsTrustQualifier           string = BaseQualifier + "/tls-trust"
+	TLSCertQualifier            string = BaseQualifier + "/tls-cert"
+	TLSTrustQualifier           string = BaseQualifier + "/tls-trust"
 )
 
 // Console and vFlow Collector constants
@@ -188,6 +188,7 @@ type Platform string
 const (
 	PlatformKubernetes Platform = "kubernetes"
 	PlatformPot        Platform = "pot"
+	PlatformIoFog      Platform = "iofog"
 	PlatformPodman     Platform = "podman"
 	PlatformDocker     Platform = "docker"
 	PlatformLinux      Platform = "linux"
@@ -218,7 +219,7 @@ const (
 type PrometheusAuthMode string
 
 const (
-	PrometheusAuthModeTls       PrometheusAuthMode = "tls"
+	PrometheusAuthModeTLS       PrometheusAuthMode = "tls"
 	PrometheusAuthModeBasic     PrometheusAuthMode = "basic"
 	PrometheusAuthModeUnsecured PrometheusAuthMode = "unsecured"
 )
@@ -233,7 +234,7 @@ const (
 
 // Assembly constants
 const (
-	AmqpDefaultPort         int32  = 5672
+	AMQPDefaultPort         int32  = 5672
 	AmqpsDefaultPort        int32  = 5671
 	EdgeRole                string = "edge"
 	EdgeRouteName           string = "skupper-edge"
@@ -298,7 +299,7 @@ type Listener struct {
 	Host             string `json:"host,omitempty"`
 	Port             int32  `json:"port"`
 	RouteContainer   bool   `json:"routeContainer,omitempty"`
-	Http             bool   `json:"http,omitempty"`
+	HTTP             bool   `json:"http,omitempty"`
 	Cost             int32  `json:"cost,omitempty"`
 	SslProfile       string `json:"sslProfile,omitempty"`
 	SaslMechanisms   string `json:"saslMechanisms,omitempty"`
@@ -345,7 +346,7 @@ type Credential struct {
 	Name        string
 	Subject     string
 	Hosts       []string
-	ConnectJson bool
+	ConnectJSON bool
 	Post        bool
 	Data        map[string][]byte
 	Simple      bool `default:"false"`
@@ -379,9 +380,9 @@ type Tuning struct {
 	NodeSelector string
 	Affinity     string
 	AntiAffinity string
-	Cpu          string
+	CPU          string
 	Memory       string
-	CpuLimit     string
+	CPULimit     string
 	MemoryLimit  string
 }
 
@@ -394,13 +395,13 @@ type RouterOptions struct {
 	IngressHost         string
 	ServiceAnnotations  map[string]string
 	PodAnnotations      map[string]string
-	LoadBalancerIp      string
+	LoadBalancerIP      string
 	DisableMutualTLS    bool
 }
 
 type LinkStatus struct {
 	Name        string
-	Url         string
+	URL         string
 	Cost        int
 	Connected   bool
 	Configured  bool

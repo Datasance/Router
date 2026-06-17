@@ -10,11 +10,9 @@ import (
 )
 
 func TestNewStringValidator(t *testing.T) {
-
 	t.Run("Test String Validator constructor", func(t *testing.T) {
-
 		validRegexp := regexp.MustCompile(`^\S*$`)
-		expectedResult := &stringValidator{validRegexp}
+		expectedResult := &StringValidator{validRegexp}
 		actualResult := NewStringValidator()
 		assert.Assert(t, reflect.DeepEqual(actualResult, expectedResult))
 	})
@@ -23,7 +21,7 @@ func TestNewStringValidator(t *testing.T) {
 func TestStringValidator_Evaluate(t *testing.T) {
 	type test struct {
 		name   string
-		value  interface{}
+		value  any
 		result bool
 	}
 
@@ -38,19 +36,16 @@ func TestStringValidator_Evaluate(t *testing.T) {
 
 	for _, test := range testTable {
 		t.Run(test.name, func(t *testing.T) {
-
-			stringValidator := NewStringValidator()
+			validator := NewStringValidator()
 			expectedResult := test.result
-			actualResult, _ := stringValidator.Evaluate(test.value)
+			actualResult, _ := validator.Evaluate(test.value)
 			assert.Assert(t, reflect.DeepEqual(actualResult, expectedResult))
 		})
 	}
 }
 
 func TestNewNumberValidator(t *testing.T) {
-
 	t.Run("Test Positive Int Validator constructor", func(t *testing.T) {
-
 		expectedResult := &NumberValidator{PositiveInt: true, IncludeZero: true}
 		actualResult := NewNumberValidator()
 		assert.Assert(t, reflect.DeepEqual(actualResult, expectedResult))
@@ -60,7 +55,7 @@ func TestNewNumberValidator(t *testing.T) {
 func TestIntegerValidator_Evaluate(t *testing.T) {
 	type test struct {
 		name   string
-		value  interface{}
+		value  any
 		result bool
 	}
 
@@ -75,7 +70,6 @@ func TestIntegerValidator_Evaluate(t *testing.T) {
 
 	for _, test := range testTable {
 		t.Run(test.name, func(t *testing.T) {
-
 			numberValidator := NewNumberValidator()
 
 			expectedResult := test.result
@@ -99,7 +93,6 @@ func TestTimeoutInSecondsValidator_Evaluate(t *testing.T) {
 
 	for _, test := range testTable {
 		t.Run(test.name, func(t *testing.T) {
-
 			numberValidator := NewTimeoutInSecondsValidator()
 
 			expectedResult := test.result
@@ -110,9 +103,7 @@ func TestTimeoutInSecondsValidator_Evaluate(t *testing.T) {
 }
 
 func TestNewOptionValidator(t *testing.T) {
-
 	t.Run("Test Option Validator constructor", func(t *testing.T) {
-
 		expectedResult := &OptionValidator{
 			AllowedOptions: []string{"a", "b"},
 		}
@@ -124,7 +115,7 @@ func TestNewOptionValidator(t *testing.T) {
 func TestOptionValidator_Evaluate(t *testing.T) {
 	type test struct {
 		name   string
-		value  interface{}
+		value  any
 		result bool
 	}
 
@@ -136,7 +127,6 @@ func TestOptionValidator_Evaluate(t *testing.T) {
 
 	for _, test := range testTable {
 		t.Run(test.name, func(t *testing.T) {
-
 			optionValidator := NewOptionValidator([]string{"a", "b"})
 			expectedResult := test.result
 			actualResult, _ := optionValidator.Evaluate(test.value)
@@ -146,11 +136,9 @@ func TestOptionValidator_Evaluate(t *testing.T) {
 }
 
 func TestNewResourceStringValidator(t *testing.T) {
-
 	t.Run("Test New Resource String Validator constructor", func(t *testing.T) {
-
 		validRegexp := regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])*(\.[a-z0-9]([-a-z0-9]*[a-z0-9])*)*$`)
-		expectedResult := &stringValidator{validRegexp}
+		expectedResult := &StringValidator{validRegexp}
 		actualResult := NewResourceStringValidator()
 		assert.Assert(t, reflect.DeepEqual(actualResult, expectedResult))
 	})
@@ -159,7 +147,7 @@ func TestNewResourceStringValidator(t *testing.T) {
 func TestNewResourceStringValidator_Evaluate(t *testing.T) {
 	type test struct {
 		name   string
-		value  interface{}
+		value  any
 		result bool
 	}
 
@@ -175,21 +163,18 @@ func TestNewResourceStringValidator_Evaluate(t *testing.T) {
 
 	for _, test := range testTable {
 		t.Run(test.name, func(t *testing.T) {
-
-			stringValidator := NewResourceStringValidator()
+			validator := NewResourceStringValidator()
 			expectedResult := test.result
-			actualResult, _ := stringValidator.Evaluate(test.value)
+			actualResult, _ := validator.Evaluate(test.value)
 			assert.Assert(t, reflect.DeepEqual(actualResult, expectedResult))
 		})
 	}
 }
 
 func TestNewSelectorStringValidator(t *testing.T) {
-
 	t.Run("Test New Selector String Validator constructor", func(t *testing.T) {
-
 		validRegexp := regexp.MustCompile("^[A-Za-z0-9=:./-]+$")
-		expectedResult := &stringValidator{validRegexp}
+		expectedResult := &StringValidator{validRegexp}
 		actualResult := NewSelectorStringValidator()
 		assert.Assert(t, reflect.DeepEqual(actualResult, expectedResult))
 	})
@@ -198,7 +183,7 @@ func TestNewSelectorStringValidator(t *testing.T) {
 func TestNewSelectorStringValidator_Evaluate(t *testing.T) {
 	type test struct {
 		name   string
-		value  interface{}
+		value  any
 		result bool
 	}
 
@@ -217,20 +202,18 @@ func TestNewSelectorStringValidator_Evaluate(t *testing.T) {
 
 	for _, test := range testTable {
 		t.Run(test.name, func(t *testing.T) {
-			stringValidator := NewSelectorStringValidator()
+			validator := NewSelectorStringValidator()
 			expectedResult := test.result
-			actualResult, _ := stringValidator.Evaluate(test.value)
+			actualResult, _ := validator.Evaluate(test.value)
 			assert.Assert(t, reflect.DeepEqual(actualResult, expectedResult))
 		})
 	}
 }
 
 func TestNewFilePathStringValidator(t *testing.T) {
-
 	t.Run("Test New File Path String Validator constructor", func(t *testing.T) {
-
 		validRegexp := regexp.MustCompile("^[A-Za-z0-9./~-]+$")
-		expectedResult := &stringValidator{validRegexp}
+		expectedResult := &StringValidator{validRegexp}
 		actualResult := NewFilePathStringValidator()
 		assert.Assert(t, reflect.DeepEqual(actualResult, expectedResult))
 	})
@@ -239,7 +222,7 @@ func TestNewFilePathStringValidator(t *testing.T) {
 func TestNewFilePathStringValidator_Evaluate(t *testing.T) {
 	type test struct {
 		name   string
-		value  interface{}
+		value  any
 		result bool
 	}
 
@@ -259,18 +242,16 @@ func TestNewFilePathStringValidator_Evaluate(t *testing.T) {
 
 	for _, test := range testTable {
 		t.Run(test.name, func(t *testing.T) {
-			stringValidator := NewFilePathStringValidator()
+			validator := NewFilePathStringValidator()
 			expectedResult := test.result
-			actualResult, _ := stringValidator.Evaluate(test.value)
+			actualResult, _ := validator.Evaluate(test.value)
 			assert.Assert(t, reflect.DeepEqual(actualResult, expectedResult))
 		})
 	}
 }
 
 func TestNewWorkloadStringValidator(t *testing.T) {
-
 	t.Run("Test New Workload String Validator constructor", func(t *testing.T) {
-
 		validRegexp := regexp.MustCompile("^[A-Za-z0-9._-]+$")
 		expectedResult := &WorkloadValidator{validRegexp, []string{"a", "b"}}
 		actualResult := NewWorkloadStringValidator([]string{"a", "b"})
@@ -280,7 +261,7 @@ func TestNewWorkloadStringValidator(t *testing.T) {
 func TestWorkloadStringValidator_Evaluate(t *testing.T) {
 	type test struct {
 		name   string
-		value  interface{}
+		value  any
 		result bool
 	}
 
@@ -300,10 +281,9 @@ func TestWorkloadStringValidator_Evaluate(t *testing.T) {
 
 	for _, test := range testTable {
 		t.Run(test.name, func(t *testing.T) {
-
-			stringValidator := NewWorkloadStringValidator([]string{"a", "b"})
+			validator := NewWorkloadStringValidator([]string{"a", "b"})
 			expectedResult := test.result
-			_, _, actualResult, _ := stringValidator.Evaluate(test.value)
+			_, _, actualResult, _ := validator.Evaluate(test.value)
 			assert.Assert(t, reflect.DeepEqual(actualResult, expectedResult))
 		})
 	}

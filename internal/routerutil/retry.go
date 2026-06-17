@@ -12,10 +12,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package utils
+package routerutil
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 )
@@ -79,14 +80,13 @@ func RetryError(interval time.Duration, maxRetries int, f CheckedFunc) error {
 }
 
 type Result struct {
-	Value interface{}
+	Value any
 	Error error
 }
 
 type ResultFunc func() Result
 
-func TryUntil(maxWindowTime time.Duration, f ResultFunc) (interface{}, error) {
-
+func TryUntil(maxWindowTime time.Duration, f ResultFunc) (any, error) {
 	result := make(chan Result, 1)
 
 	go func() {
@@ -94,7 +94,7 @@ func TryUntil(maxWindowTime time.Duration, f ResultFunc) (interface{}, error) {
 	}()
 	select {
 	case <-time.After(maxWindowTime):
-		return nil, fmt.Errorf("timed out")
+		return nil, errors.New("timed out")
 	case result := <-result:
 		return result.Value, result.Error
 	}

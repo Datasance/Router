@@ -11,7 +11,7 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 
-	"github.com/datasance/router/internal/qdr"
+	"github.com/eclipse-iofog/router/internal/qdr"
 )
 
 const debounceDuration = 500 * time.Millisecond
@@ -54,9 +54,9 @@ func ScanSSLProfileDir(basePath string) (map[string]qdr.SslProfile, error) {
 	return profiles, nil
 }
 
-// WatchSSLProfileDir watches basePath (and subdirs) for changes, debounces events,
-// then rescans and calls onUpdate with the new profiles map. Runs until ctx is cancelled.
-func WatchSSLProfileDir(ctx context.Context, basePath string, onUpdate func(profiles map[string]qdr.SslProfile)) {
+// SSLProfileDir watches basePath (and subdirs) for changes, debounces events,
+// then rescans and calls onUpdate with the new profiles map. Runs until ctx is canceled.
+func SSLProfileDir(ctx context.Context, basePath string, onUpdate func(profiles map[string]qdr.SslProfile)) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		log.Printf("ERROR: Failed to create fsnotify watcher for SSL profile path: %v", err)

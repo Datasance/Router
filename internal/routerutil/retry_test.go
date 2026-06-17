@@ -1,7 +1,8 @@
-package utils
+package routerutil
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -47,7 +48,6 @@ type RetryTestItem struct {
 }
 
 func TestRetry(t *testing.T) {
-
 	testTable := []RetryTestItem{
 		{ // #1
 			okOnTry:          1,
@@ -57,22 +57,22 @@ func TestRetry(t *testing.T) {
 			expectedResponse: nil,
 		}, { // #2
 			okOnTry:          1,
-			err:              fmt.Errorf("app error"),
+			err:              errors.New("app error"),
 			maxRetries:       3,
 			expectedTries:    1,
-			expectedResponse: fmt.Errorf("app error"),
+			expectedResponse: errors.New("app error"),
 		}, { // #3, #7
 			okOnTry:          0,
 			err:              nil,
 			maxRetries:       3,
 			expectedTries:    4,
-			expectedResponse: fmt.Errorf("still failing after 3 retries"),
+			expectedResponse: errors.New("still failing after 3 retries"),
 		}, { // #4
 			okOnTry:          0,
-			err:              fmt.Errorf("app error"),
+			err:              errors.New("app error"),
 			maxRetries:       3,
 			expectedTries:    1,
-			expectedResponse: fmt.Errorf("app error"),
+			expectedResponse: errors.New("app error"),
 		}, { // #3, #1
 			okOnTry:          2,
 			err:              nil,
@@ -81,17 +81,17 @@ func TestRetry(t *testing.T) {
 			expectedResponse: nil,
 		}, { // #3, #2
 			okOnTry:          2,
-			err:              fmt.Errorf("app error"),
+			err:              errors.New("app error"),
 			maxRetries:       3,
 			expectedTries:    2,
-			expectedResponse: fmt.Errorf("app error"),
+			expectedResponse: errors.New("app error"),
 			errorOnTry:       2,
 		}, { // #3, #4
 			okOnTry:          0,
-			err:              fmt.Errorf("app error"),
+			err:              errors.New("app error"),
 			maxRetries:       3,
 			expectedTries:    2,
-			expectedResponse: fmt.Errorf("app error"),
+			expectedResponse: errors.New("app error"),
 			errorOnTry:       2,
 		}, { // #3, #5
 			okOnTry:          4,
@@ -101,17 +101,17 @@ func TestRetry(t *testing.T) {
 			expectedResponse: nil,
 		}, { // #3, #6
 			okOnTry:          4,
-			err:              fmt.Errorf("app error"),
+			err:              errors.New("app error"),
 			maxRetries:       3,
 			expectedTries:    4,
-			expectedResponse: fmt.Errorf("app error"),
+			expectedResponse: errors.New("app error"),
 			errorOnTry:       4,
 		}, { // #3, #8
 			okOnTry:          0,
-			err:              fmt.Errorf("app error"),
+			err:              errors.New("app error"),
 			maxRetries:       3,
 			expectedTries:    4,
-			expectedResponse: fmt.Errorf("app error"),
+			expectedResponse: errors.New("app error"),
 			errorOnTry:       4,
 		}, {
 			okOnTry:          1,
@@ -127,14 +127,12 @@ func TestRetry(t *testing.T) {
 			expectedResponse: fmt.Errorf("maxRetries (%d) should be > 0", 0),
 		},
 	}
-
 	for _, item := range testTable {
 		name := fmt.Sprintf("okOnTry:%v err:%v expectedTries:%v maxRetries:%v errorOnTry:%v nilOnTry: %v",
 			item.okOnTry, item.err, item.expectedTries, item.maxRetries, item.errorOnTry, item.nilOnTry)
 
 		var currentTry int
 		t.Run(name, func(t *testing.T) {
-
 			retryErr := Retry(time.Microsecond, item.maxRetries, func() (ok bool, err error) {
 				currentTry++
 				if currentTry > item.maxRetries+1 {
@@ -158,8 +156,7 @@ func TestRetry(t *testing.T) {
 					err = nil
 				}
 
-				return
-
+				return ok, err
 			})
 
 			if item.expectedResponse != nil {
@@ -179,10 +176,8 @@ func TestRetry(t *testing.T) {
 			if currentTry != item.expectedTries {
 				t.Errorf("%v != %v", currentTry, item.expectedTries)
 			}
-
 		})
 	}
-
 }
 
 type TestRetryErrorItem struct {
@@ -216,7 +211,6 @@ func TestRetryError(t *testing.T) {
 			expectSuccess: false,
 		},
 	}
-
 	for _, item := range testTable {
 		name := fmt.Sprintf("workOnTry: %v expectedTries: %v maxRetries: %v expectSuccess: %v",
 			item.workOnTry, item.expectedTries, item.maxRetries, item.expectSuccess)
@@ -228,7 +222,7 @@ func TestRetryError(t *testing.T) {
 				if currentTry >= item.workOnTry {
 					return nil
 				}
-				return fmt.Errorf("Still not working")
+				return errors.New("still not working")
 			})
 
 			if item.expectSuccess != (resp == nil) {
@@ -238,16 +232,14 @@ func TestRetryError(t *testing.T) {
 			if item.expectedTries != currentTry {
 				t.Errorf("Returned in %d tries", currentTry)
 			}
-
 		})
 	}
-
 }
 
 type TestTryUntilItem struct {
 	workOnSecond  time.Duration
 	funcError     error
-	funcValue     interface{}
+	funcValue     any
 	maxDuration   time.Duration
 	expectTimeout bool
 }
@@ -270,7 +262,7 @@ func TestTryUntil(t *testing.T) {
 		},
 		{
 			workOnSecond:  100 * time.Millisecond,
-			funcError:     fmt.Errorf("function is not working"),
+			funcError:     errors.New("function is not working"),
 			funcValue:     nil,
 			maxDuration:   5 * time.Second,
 			expectTimeout: false,
@@ -283,7 +275,6 @@ func TestTryUntil(t *testing.T) {
 			expectTimeout: true,
 		},
 	}
-
 	for _, item := range testTable {
 		name := fmt.Sprintf("workOnSecond: %v maxDuration: %v expectTimeout: %v",
 			item.workOnSecond, item.maxDuration, item.expectTimeout)
@@ -298,24 +289,22 @@ func TestTryUntil(t *testing.T) {
 				}
 			})
 
-			fmt.Printf("result: %v", resp)
+			_, _ = fmt.Printf("result: %v", resp)
 			fmt.Println()
 
 			if item.expectTimeout && err.Error() != "timed out" {
-				t.Errorf("It was expected a timeout but it did not happen")
+				t.Error("It was expected a timeout but it did not happen")
 			}
 
 			if item.funcValue != nil && resp == nil {
-				t.Errorf("It was expected to receive a value")
+				t.Error("It was expected to receive a value")
 			}
 
-			if !item.expectTimeout && item.funcError != err {
+			if !item.expectTimeout && !errors.Is(item.funcError, err) {
 				t.Errorf("Received wrong error: %s", err)
 			}
-
 		})
 	}
-
 }
 
 type TestRetryErrorWithContextItem struct {
@@ -356,7 +345,6 @@ func TestRetryErrorWithContext(t *testing.T) {
 			expectedError: "context deadline exceeded",
 		},
 	}
-
 	for _, item := range testTable {
 		item := item
 
@@ -374,7 +362,7 @@ func TestRetryErrorWithContext(t *testing.T) {
 				if currentTry == item.workOnTry {
 					return nil
 				}
-				return fmt.Errorf("Still not working")
+				return errors.New("still not working")
 			})
 
 			elapsed := time.Since(start)
@@ -403,5 +391,4 @@ func TestRetryErrorWithContext(t *testing.T) {
 			}
 		})
 	}
-
 }

@@ -5,8 +5,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/datasance/router/internal/resources/types"
-	"github.com/datasance/router/internal/utils"
+	types "github.com/eclipse-iofog/router/internal/resources/skuppertypes"
+	utils "github.com/eclipse-iofog/router/internal/routerutil"
 	"k8s.io/utils/ptr"
 )
 
@@ -46,19 +46,12 @@ func GetPlatform() types.Platform {
 	}
 	if platform == "" {
 		platform = types.Platform(utils.DefaultStr(Platform,
-			os.Getenv(types.ENV_PLATFORM),
+			os.Getenv(types.EnvPlatform),
 			string(types.PlatformKubernetes)))
 	}
 	switch platform {
-	case types.PlatformPodman:
-		configuredPlatform = &platform
-	case types.PlatformDocker:
-		configuredPlatform = &platform
-	case types.PlatformLinux:
-		configuredPlatform = &platform
-	case types.PlatformPot:
-		configuredPlatform = &platform
-	case types.PlatformKubernetes:
+	case types.PlatformPodman, types.PlatformDocker, types.PlatformLinux,
+		types.PlatformPot, types.PlatformIoFog, types.PlatformKubernetes:
 		configuredPlatform = &platform
 	default:
 		configuredPlatform = ptr.To(types.PlatformKubernetes)
@@ -68,6 +61,13 @@ func GetPlatform() types.Platform {
 
 // IsKubernetesRouterMode returns true when SKUPPER_PLATFORM is "kubernetes"
 // (router config from ConfigMap). Default is pot (config from iofog SDK).
+// SKUPPER_PLATFORM=pot or iofog both use SDK LocalAPI v3 mode.
 func IsKubernetesRouterMode() bool {
-	return os.Getenv(types.ENV_PLATFORM) == string(types.PlatformKubernetes)
+	return os.Getenv(types.EnvPlatform) == string(types.PlatformKubernetes)
+}
+
+// IsPotRouterMode returns true when SKUPPER_PLATFORM is unset, "pot", or "iofog".
+func IsPotRouterMode() bool {
+	platform := os.Getenv(types.EnvPlatform)
+	return platform == "" || platform == string(types.PlatformPot) || platform == string(types.PlatformIoFog)
 }

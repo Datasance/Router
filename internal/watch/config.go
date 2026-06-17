@@ -13,11 +13,11 @@ import (
 
 const configDebounceDuration = 500 * time.Millisecond
 
-// WatchConfigFile watches the config file at configPath for changes. On write/create
+// ConfigFile watches the config file at configPath for changes. On write/create
 // (after debounce), it reads the file and calls onUpdate with the content. Loop
 // prevention is the caller's responsibility: compare content with last applied and
-// skip calling UpdateRouter if unchanged. Runs until ctx is cancelled.
-func WatchConfigFile(ctx context.Context, configPath string, onUpdate func(configJSON string) error) {
+// skip calling UpdateRouter if unchanged. Runs until ctx is canceled.
+func ConfigFile(ctx context.Context, configPath string, onUpdate func(configJSON string) error) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		log.Printf("ERROR: Failed to create fsnotify watcher for config file: %v", err)
