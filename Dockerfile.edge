@@ -58,15 +58,29 @@ RUN mkdir /image/licenses && cp ./LICENSE /image/licenses
 
 FROM debian:trixie AS packager
 
-RUN apt-get update && apt-get install -y --no-install-recommends debootstrap \
- && rm -rf /var/lib/apt/lists/*
+# UBI installroot analogue: download only runtime .debs + hard deps, extract to /output.
+ENV ROOTFS=/output
+ENV PACKAGER_PKGS="base-files base-passwd libc6 libgcc-s1 bash ca-certificates coreutils hostname iputils-ping libnghttp2-14 libsasl2-2 libsasl2-modules libpython3.13 openssl python3 login"
 
-RUN debootstrap --variant=minbase \
-    --include=libsasl2-2,libsasl2-modules,openssl,python3,libnghttp2-14,hostname,iputils-ping,ca-certificates \
-    trixie /output http://deb.debian.org/debian
+RUN apt-get update \
+ && mkdir -p "${ROOTFS}" /tmp/debs \
+ && cd /tmp/debs \
+ && apt-get download $(apt-cache depends --recurse --no-recommends --no-suggests --no-conflicts --no-breaks --no-replaces --no-enhances ${PACKAGER_PKGS} 2>/dev/null | grep '^\w' | sort -u) \
+ && for deb in *.deb; do dpkg-deb -x "$deb" "${ROOTFS}"; done \
+ && mkdir -p "${ROOTFS}/home/runner" \
+ && grep -q '^runner:' "${ROOTFS}/etc/passwd" 2>/dev/null || echo 'runner:x:10000:10000:runner:/home/runner:/usr/sbin/nologin' >> "${ROOTFS}/etc/passwd" \
+ && grep -q '^runner:' "${ROOTFS}/etc/group" 2>/dev/null || echo 'runner:x:10000:' >> "${ROOTFS}/etc/group" \
+ && rm -rf /tmp/debs /var/lib/apt/lists/*
 
-RUN chroot /output groupadd -g 10000 runner \
- && chroot /output useradd --uid 10000 --gid 10000 --create-home --shell /usr/sbin/nologin runner
+RUN rm -rf \
+    "${ROOTFS}/usr/share/doc" "${ROOTFS}/usr/share/man" "${ROOTFS}/usr/share/info" \
+    "${ROOTFS}/usr/share/locale" "${ROOTFS}/usr/share/debconf" \
+    "${ROOTFS}/usr/share/tzdata" "${ROOTFS}/usr/share/zoneinfo" \
+    "${ROOTFS}/var/lib/dpkg" "${ROOTFS}/etc/dpkg" \
+    "${ROOTFS}/usr/bin/dpkg"* "${ROOTFS}/usr/bin/apt"* \
+    "${ROOTFS}/usr/bin/gawk" "${ROOTFS}/usr/bin/mawk" "${ROOTFS}/usr/bin/tar" \
+ && find "${ROOTFS}/usr/lib" -name 'libapt*.so*' -delete \
+ && find "${ROOTFS}/usr/lib" -path '*/python3*' -type d \( -name test -o -name idlelib -o -name tkinter -o -name ensurepip \) -exec rm -rf {} + 2>/dev/null || true
 
 FROM golang:1.26.4-alpine AS go-builder
 
