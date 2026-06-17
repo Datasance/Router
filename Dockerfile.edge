@@ -1,0 +1,132 @@
+# Plan 5 spike — Debian Trixie compile for linux/arm/v7 and linux/riscv64.
+# UBI Dockerfile handles amd64/arm64; this file mirrors /image layout → scratch.
+
+FROM debian:trixie AS builder
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc g++ make cmake pkg-config \
+    libsasl2-dev libssl-dev uuid-dev libffi-dev \
+    python3-dev python3-pip python3-venv \
+    python3-build python3-setuptools python3-cffi-backend \
+    libnghttp2-dev \
+    wget ca-certificates tar patch findutils git \
+    libtool autoconf automake \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+RUN git clone --depth 1 --branch 3.5.1 https://github.com/skupperproject/skupper-router.git .
+
+ENV PROTON_VERSION=e5d5c2badb964684bf41ba509a110bf06a24712a
+ENV PROTON_SOURCE_URL=${PROTON_SOURCE_URL:-https://github.com/apache/qpid-proton/archive/${PROTON_VERSION}.tar.gz}
+ENV LWS_VERSION=v4.3.3
+ENV LIBUNWIND_VERSION=v1.8.1
+ENV LWS_SOURCE_URL=${LWS_SOURCE_URL:-https://github.com/warmcat/libwebsockets/archive/refs/tags/${LWS_VERSION}.tar.gz}
+ENV LIBUNWIND_SOURCE_URL=${LIBUNWIND_SOURCE_URL:-https://github.com/libunwind/libunwind/archive/refs/tags/${LIBUNWIND_VERSION}.tar.gz}
+ENV PKG_CONFIG_PATH=/usr/local/lib/pkgconfig
+ENV PIP_BREAK_SYSTEM_PACKAGES=1
+ENV CFLAGS="-O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fstack-protector-strong"
+ENV CXXFLAGS="-O2 -g -pipe -Wall -Wp,-D_FORTIFY_SOURCE=2 -fstack-protector-strong"
+ENV LDFLAGS="-Wl,-z,relro -Wl,-z,now -Wl,--as-needed"
+
+ARG VERSION=0.0.0
+ENV VERSION=$VERSION
+ARG TARGETARCH
+ENV PLATFORM=$TARGETARCH
+
+# compile.sh expects RPM %set_build_flags and RHEL lib64 paths; adapt for Debian.
+# Skip requirements-dev.txt (tests/grpcio) and ci_requirements.txt (PyPI pip upgrade);
+# Proton Python bindings use apt: python3-build, setuptools, cffi-backend above.
+RUN sed -i \
+    -e '/^BUILD_FLAGS=/d' \
+    -e '/^eval "${BUILD_FLAGS}"/d' \
+    -e 's|install/lib64/cmake/Proton|install/lib/cmake/Proton|' \
+    -e 's|-DENABLE_PROFILE_GUIDED_OPTIMIZATION=ON|-DENABLE_PROFILE_GUIDED_OPTIMIZATION=OFF|' \
+    -e 's|-DCMAKE_INSTALL_PREFIX=/usr|-DCMAKE_C_FLAGS="-Wno-error=format" -DCMAKE_INSTALL_PREFIX=/usr|' \
+    -e '/requirements-dev.txt/s/^/# /' \
+    -e '/ci_requirements.txt/s/^/# /' \
+    -e 's|python3 -m pip install "$(find|python3 -m pip install --ignore-installed "$(find|g' \
+    .github/scripts/compile.sh
+
+RUN .github/scripts/compile.sh
+
+RUN mkdir -p /image \
+ && tar zxpf /qpid-proton-image.tar.gz -C /image \
+ && tar zxpf /skupper-router-image.tar.gz -C /image \
+ && tar zxpf /libwebsockets-image.tar.gz -C /image
+
+RUN mkdir /image/licenses && cp ./LICENSE /image/licenses
+
+FROM debian:trixie AS packager
+
+# UBI installroot analogue: download only runtime .debs + hard deps, extract to /output.
+ENV ROOTFS=/output
+ENV PACKAGER_PKGS="base-files base-passwd libc6 libgcc-s1 bash ca-certificates coreutils hostname iputils-ping libnghttp2-14 libsasl2-2 libsasl2-modules libpython3.13 openssl python3 login"
+
+RUN apt-get update \
+ && mkdir -p "${ROOTFS}" /tmp/debs \
+ && cd /tmp/debs \
+ && apt-get download $(apt-cache depends --recurse --no-recommends --no-suggests --no-conflicts --no-breaks --no-replaces --no-enhances ${PACKAGER_PKGS} 2>/dev/null | grep '^\w' | sort -u) \
+ && for deb in *.deb; do dpkg-deb -x "$deb" "${ROOTFS}"; done \
+ && mkdir -p "${ROOTFS}/home/runner" \
+ && grep -q '^runner:' "${ROOTFS}/etc/passwd" 2>/dev/null || echo 'runner:x:10000:10000:runner:/home/runner:/usr/sbin/nologin' >> "${ROOTFS}/etc/passwd" \
+ && grep -q '^runner:' "${ROOTFS}/etc/group" 2>/dev/null || echo 'runner:x:10000:' >> "${ROOTFS}/etc/group" \
+ && rm -rf /tmp/debs /var/lib/apt/lists/*
+
+RUN rm -rf \
+    "${ROOTFS}/usr/share/doc" "${ROOTFS}/usr/share/man" "${ROOTFS}/usr/share/info" \
+    "${ROOTFS}/usr/share/locale" "${ROOTFS}/usr/share/debconf" \
+    "${ROOTFS}/usr/share/tzdata" "${ROOTFS}/usr/share/zoneinfo" \
+    "${ROOTFS}/var/lib/dpkg" "${ROOTFS}/etc/dpkg" \
+    "${ROOTFS}/usr/bin/dpkg"* "${ROOTFS}/usr/bin/apt"* \
+    "${ROOTFS}/usr/bin/gawk" "${ROOTFS}/usr/bin/mawk" "${ROOTFS}/usr/bin/tar" \
+ && find "${ROOTFS}/usr/lib" -name 'libapt*.so*' -delete \
+ && find "${ROOTFS}/usr/lib" -path '*/python3*' -type d \( -name test -o -name idlelib -o -name tkinter -o -name ensurepip \) -exec rm -rf {} + 2>/dev/null || true
+
+FROM golang:1.26.4-alpine AS go-builder
+
+ARG TARGETOS
+ARG TARGETARCH
+
+RUN mkdir -p /go/src/github.com/eclipse-iofog/router
+WORKDIR /go/src/github.com/eclipse-iofog/router
+COPY . /go/src/github.com/eclipse-iofog/router
+RUN go fmt ./...
+RUN if [ "$TARGETARCH" = "arm" ]; then \
+      GOOS=${TARGETOS} GOARCH=arm GOARM=7 go build -trimpath -ldflags="-s -w" -o bin/router .; \
+    else \
+      GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o bin/router .; \
+    fi
+
+FROM debian:trixie-slim AS tz
+RUN apt-get update && apt-get install -y --no-install-recommends tzdata \
+ && rm -rf /var/lib/apt/lists/*
+
+FROM scratch
+
+ARG OCI_SOURCE_REPO
+ARG OCI_VERSION=latest
+ARG OCI_REVISION
+ARG ROUTER_DISTRIBUTION
+
+LABEL org.opencontainers.image.source="${OCI_SOURCE_REPO}" \
+      org.opencontainers.image.version="${OCI_VERSION}" \
+      org.opencontainers.image.revision="${OCI_REVISION}" \
+      distribution="${ROUTER_DISTRIBUTION}"
+
+COPY --from=packager /output /
+USER 10000
+
+COPY --from=builder /image /
+
+WORKDIR /home/skrouterd/bin
+COPY ./scripts/* /home/skrouterd/bin/
+
+ENV VERSION=${OCI_VERSION}
+ENV QDROUTERD_HOME=/home/skrouterd
+
+COPY LICENSE /licenses/LICENSE
+COPY --from=go-builder /go/src/github.com/eclipse-iofog/router/bin/router /home/skrouterd/bin/router
+
+COPY --from=tz /usr/share/zoneinfo /usr/share/zoneinfo
+
+CMD ["/home/skrouterd/bin/router"]

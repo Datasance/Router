@@ -1,0 +1,49 @@
+name: Set router build environment
+description: Resolves router image registry, container image, OCI source, distribution, and GitHub repo from workflow env or github.repository.
+
+runs:
+  using: composite
+  steps:
+    - name: Set image registry and OCI source
+      shell: bash
+      run: |
+        REGISTRY="${{ env.IMAGE_REGISTRY }}"
+        OCI_SOURCE="${{ env.OCI_SOURCE_REPO }}"
+        ROUTER_IMAGE="${{ env.ROUTER_CONTAINER_IMAGE }}"
+        if [ -z "$REGISTRY" ] || [ -z "$OCI_SOURCE" ] || [ -z "$ROUTER_IMAGE" ]; then
+          case "${{ github.repository }}" in
+            eclipse-iofog/router)
+              REGISTRY="${REGISTRY:-ghcr.io/eclipse-iofog}"
+              OCI_SOURCE="${OCI_SOURCE:-https://github.com/eclipse-iofog/router}"
+              ROUTER_IMAGE="${ROUTER_IMAGE:-ghcr.io/eclipse-iofog/router}"
+              ;;
+            *)
+              REGISTRY="${REGISTRY:-ghcr.io/datasance}"
+              OCI_SOURCE="${OCI_SOURCE:-https://github.com/Datasance/router}"
+              ROUTER_IMAGE="${ROUTER_IMAGE:-ghcr.io/datasance/router}"
+              ;;
+          esac
+        fi
+        echo "IMAGE_REGISTRY=$REGISTRY" >> "${GITHUB_ENV}"
+        echo "OCI_SOURCE_REPO=$OCI_SOURCE" >> "${GITHUB_ENV}"
+        echo "ROUTER_CONTAINER_IMAGE=$ROUTER_IMAGE" >> "${GITHUB_ENV}"
+
+    - name: Set router distribution
+      shell: bash
+      run: |
+        DISTRIBUTION="${{ env.ROUTER_DISTRIBUTION }}"
+        GITHUB_REPO="${{ env.ROUTER_GITHUB_REPO }}"
+        if [ -z "$DISTRIBUTION" ] || [ -z "$GITHUB_REPO" ]; then
+          case "${{ github.repository }}" in
+            eclipse-iofog/router)
+              DISTRIBUTION="${DISTRIBUTION:-iofog}"
+              GITHUB_REPO="${GITHUB_REPO:-eclipse-iofog/router}"
+              ;;
+            *)
+              DISTRIBUTION="${DISTRIBUTION:-datasance}"
+              GITHUB_REPO="${GITHUB_REPO:-Datasance/router}"
+              ;;
+          esac
+        fi
+        echo "ROUTER_DISTRIBUTION=$DISTRIBUTION" >> "${GITHUB_ENV}"
+        echo "ROUTER_GITHUB_REPO=$GITHUB_REPO" >> "${GITHUB_ENV}"

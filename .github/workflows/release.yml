@@ -1,0 +1,195 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  GO_VERSION: '1.26.4'
+
+permissions: read-all
+
+jobs:
+  quality:
+    name: Lint and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: go.sum
+
+      - run: go version
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@4afd733a84b1f43292c63897423277bb7f4313a9 # v8.0.0
+        with:
+          version: v2.12.2
+          args: --timeout=5m0s --config .golangci.yaml
+
+      - name: Static security analysis
+        run: make security-code
+
+      - name: Run unit tests
+        run: make test
+
+      - name: Check formatting
+        run: make fmt-check
+
+  publish-ubi:
+    name: Publish UBI image (amd64, arm64)
+    runs-on: ubuntu-latest
+    needs: [quality]
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: ./.github/actions/set-build-env
+        env:
+          IMAGE_REGISTRY: ${{ vars.IMAGE_REGISTRY }}
+          ROUTER_CONTAINER_IMAGE: ${{ vars.ROUTER_CONTAINER_IMAGE }}
+          OCI_SOURCE_REPO: ${{ vars.OCI_SOURCE_REPO }}
+          ROUTER_DISTRIBUTION: ${{ vars.ROUTER_DISTRIBUTION }}
+          ROUTER_GITHUB_REPO: ${{ vars.ROUTER_GITHUB_REPO }}
+
+      - name: Resolve semver tag
+        run: |
+          SEMVER="${GITHUB_REF_NAME#v}"
+          echo "SEMVER=${SEMVER}" >> "${GITHUB_ENV}"
+          REGISTRY_HOST="${ROUTER_CONTAINER_IMAGE%%/*}"
+          echo "REGISTRY_HOST=${REGISTRY_HOST}" >> "${GITHUB_ENV}"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4.1.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+
+      - name: Log in to container registry
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.6.0
+        with:
+          registry: ${{ env.REGISTRY_HOST }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Internal staging tag; merged into :semver/:latest/:main by publish-manifest (Plan 6).
+      - name: Build and push UBI image
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            OCI_SOURCE_REPO=${{ env.OCI_SOURCE_REPO }}
+            OCI_VERSION=${{ env.SEMVER }}
+            OCI_REVISION=${{ github.sha }}
+            ROUTER_DISTRIBUTION=${{ env.ROUTER_DISTRIBUTION }}
+          tags: ${{ env.ROUTER_CONTAINER_IMAGE }}:${{ env.SEMVER }}-ubi
+
+  publish-edge:
+    name: Publish edge image (arm/v7, riscv64)
+    runs-on: ubuntu-latest
+    needs: [quality]
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: ./.github/actions/set-build-env
+        env:
+          IMAGE_REGISTRY: ${{ vars.IMAGE_REGISTRY }}
+          ROUTER_CONTAINER_IMAGE: ${{ vars.ROUTER_CONTAINER_IMAGE }}
+          OCI_SOURCE_REPO: ${{ vars.OCI_SOURCE_REPO }}
+          ROUTER_DISTRIBUTION: ${{ vars.ROUTER_DISTRIBUTION }}
+          ROUTER_GITHUB_REPO: ${{ vars.ROUTER_GITHUB_REPO }}
+
+      - name: Resolve semver tag
+        run: |
+          SEMVER="${GITHUB_REF_NAME#v}"
+          echo "SEMVER=${SEMVER}" >> "${GITHUB_ENV}"
+          REGISTRY_HOST="${ROUTER_CONTAINER_IMAGE%%/*}"
+          echo "REGISTRY_HOST=${REGISTRY_HOST}" >> "${GITHUB_ENV}"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4.1.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+
+      - name: Log in to container registry
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.6.0
+        with:
+          registry: ${{ env.REGISTRY_HOST }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Internal staging tag; merged into :semver/:latest/:main by publish-manifest.
+      - name: Build and push edge image
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: .
+          file: Dockerfile.edge
+          platforms: linux/arm/v7,linux/riscv64
+          push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            OCI_SOURCE_REPO=${{ env.OCI_SOURCE_REPO }}
+            OCI_VERSION=${{ env.SEMVER }}
+            OCI_REVISION=${{ github.sha }}
+            ROUTER_DISTRIBUTION=${{ env.ROUTER_DISTRIBUTION }}
+          tags: ${{ env.ROUTER_CONTAINER_IMAGE }}:${{ env.SEMVER }}-edge
+
+  publish-manifest:
+    name: Publish 4-platform manifest
+    runs-on: ubuntu-latest
+    needs: [publish-ubi, publish-edge]
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: ./.github/actions/set-build-env
+        env:
+          IMAGE_REGISTRY: ${{ vars.IMAGE_REGISTRY }}
+          ROUTER_CONTAINER_IMAGE: ${{ vars.ROUTER_CONTAINER_IMAGE }}
+          OCI_SOURCE_REPO: ${{ vars.OCI_SOURCE_REPO }}
+          ROUTER_DISTRIBUTION: ${{ vars.ROUTER_DISTRIBUTION }}
+          ROUTER_GITHUB_REPO: ${{ vars.ROUTER_GITHUB_REPO }}
+
+      - name: Resolve semver tag
+        run: |
+          SEMVER="${GITHUB_REF_NAME#v}"
+          echo "SEMVER=${SEMVER}" >> "${GITHUB_ENV}"
+          REGISTRY_HOST="${ROUTER_CONTAINER_IMAGE%%/*}"
+          echo "REGISTRY_HOST=${REGISTRY_HOST}" >> "${GITHUB_ENV}"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+
+      - name: Log in to container registry
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.6.0
+        with:
+          registry: ${{ env.REGISTRY_HOST }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create and push multi-arch manifest
+        run: |
+          docker buildx imagetools create \
+            -t "${ROUTER_CONTAINER_IMAGE}:${SEMVER}" \
+            -t "${ROUTER_CONTAINER_IMAGE}:latest" \
+            -t "${ROUTER_CONTAINER_IMAGE}:main" \
+            "${ROUTER_CONTAINER_IMAGE}:${SEMVER}-ubi" \
+            "${ROUTER_CONTAINER_IMAGE}:${SEMVER}-edge"

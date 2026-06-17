@@ -1,10 +1,10 @@
-package utils
+package routerutil
 
 import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
-	"fmt"
+	"errors"
 	"io"
 	"os"
 	"path"
@@ -115,12 +115,14 @@ func (t *Tarball) addFiles(dir string) error {
 			return err
 		}
 		if entry.IsDir() {
-			t.tw.WriteHeader(&tar.Header{
+			if err := t.tw.WriteHeader(&tar.Header{
 				Name:     path.Join(innerDir, entry.Name()) + "/",
 				Mode:     int64(fileStat.Mode()),
 				Typeflag: tar.TypeDir,
 				ModTime:  fileStat.ModTime(),
-			})
+			}); err != nil {
+				return err
+			}
 			err = t.addFiles(path.Join(dir, entry.Name()))
 			if err != nil {
 				return err
@@ -178,7 +180,7 @@ func (t *Tarball) AddFileData(fileName string, mode int64, mod time.Time, data [
 func (t *Tarball) validateOutputPathoutputPath(outputPath string) error {
 	// Validating outputPath
 	if outputPath == "" {
-		return fmt.Errorf("outputPath is empty")
+		return errors.New("outputPath is empty")
 	}
 	outputPathStat, err := os.Stat(outputPath)
 	if err != nil {
@@ -187,7 +189,7 @@ func (t *Tarball) validateOutputPathoutputPath(outputPath string) error {
 			return err
 		}
 	} else if !outputPathStat.Mode().IsDir() {
-		return fmt.Errorf("outputPath is not a directory")
+		return errors.New("outputPath is not a directory")
 	}
 	return nil
 }

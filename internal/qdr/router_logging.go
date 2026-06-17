@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/datasance/router/internal/resources/types"
+	types "github.com/eclipse-iofog/router/internal/resources/skuppertypes"
 )
 
 func RouterLogConfigToString(config []types.RouterLogConfig) string {
@@ -71,8 +71,8 @@ func ParseRouterLogConfig(config string) ([]types.RouterLogConfig, error) {
 	return parsed, nil
 }
 
-var LoggingModules []string = []string{
-	"", /*implies DEFAULT*/
+var LoggingModules = []string{
+	"", // implies DEFAULT
 	"ROUTER",
 	"ROUTER_CORE",
 	"ROUTER_HELLO",
@@ -93,7 +93,7 @@ var LoggingModules []string = []string{
 	"HTTP_ADAPTOR",
 	"DEFAULT",
 }
-var LoggingLevels []string = []string{
+var LoggingLevels = []string{
 	"trace",
 	"debug",
 	"info",
@@ -116,7 +116,7 @@ func checkLoggingModule(mod string) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("Invalid logging module for router: %s", mod)
+	return fmt.Errorf("invalid logging module for router: %s", mod)
 }
 
 func checkLoggingLevel(level string) error {
@@ -125,5 +125,5 @@ func checkLoggingLevel(level string) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("Invalid logging level for router: %s", level)
+	return fmt.Errorf("invalid logging level for router: %s", level)
 }

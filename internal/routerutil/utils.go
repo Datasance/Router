@@ -12,10 +12,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package utils
+package routerutil
 
 import (
 	"crypto/rand"
+	"errors"
 	"io"
 	"os"
 	"os/user"
@@ -25,12 +26,12 @@ import (
 
 const alphanumerics = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
-func RandomId(length int) string {
+func RandomID(length int) string {
 	buffer := make([]byte, length)
-	rand.Read(buffer)
-	max := len(alphanumerics)
+	_, _ = rand.Read(buffer)
+	alphabetLen := len(alphanumerics)
 	for i := range buffer {
-		buffer[i] = alphanumerics[int(buffer[i])%max]
+		buffer[i] = alphanumerics[int(buffer[i])%alphabetLen]
 	}
 	return string(buffer)
 }
@@ -110,7 +111,7 @@ func IsDirEmpty(name string) (bool, error) {
 
 	_, err = file.Readdir(1)
 
-	if err == io.EOF {
+	if errors.Is(err, io.EOF) {
 		return true, nil
 	}
 
@@ -131,6 +132,9 @@ func StringSlicesEqual(a, b []string) bool {
 
 // DefaultStr returns the first non-empty string
 func DefaultStr(values ...string) string {
+	if len(values) == 0 {
+		return ""
+	}
 	if len(values) == 1 {
 		return values[0]
 	}

@@ -3,6 +3,7 @@ package qdr
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -10,14 +11,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/datasance/router/internal/config"
-	"github.com/datasance/router/internal/resources/types"
-	"github.com/datasance/router/internal/utils"
+	"github.com/eclipse-iofog/router/internal/config"
+	types "github.com/eclipse-iofog/router/internal/resources/skuppertypes"
+	utils "github.com/eclipse-iofog/router/internal/routerutil"
 	amqp "github.com/interconnectedcloud/go-amqp"
 )
 
 type RouterNode struct {
-	Id      string `json:"id"`
+	ID      string `json:"id"`
 	Name    string `json:"name"`
 	NextHop string `json:"nextHop"`
 	Address string `json:"address"`
@@ -47,7 +48,7 @@ type Agent struct {
 }
 
 type Router struct {
-	Id          string
+	ID          string
 	Address     string
 	Edge        bool
 	Site        SiteMetadata
@@ -56,7 +57,7 @@ type Router struct {
 }
 
 type SiteMetadata struct {
-	Id       string `json:"id,omitempty"`
+	ID       string `json:"id,omitempty"`
 	Version  string `json:"version,omitempty"`
 	Platform string `json:"platform,omitempty"`
 }
@@ -67,14 +68,14 @@ func GetSiteMetadata(metadata string) SiteMetadata {
 	if err != nil {
 		log.Printf("Assuming old format for router metadata %s: %s", metadata, err)
 		// assume old format, where metadata just holds site id
-		result.Id = metadata
+		result.ID = metadata
 	}
 	return result
 }
 
-func getSiteMetadataString(siteId string, version string) string {
+func getSiteMetadataString(siteID string, version string) string {
 	siteDetails := SiteMetadata{
-		Id:       siteId,
+		ID:       siteID,
 		Version:  version,
 		Platform: string(config.GetPlatform()),
 	}
@@ -86,22 +87,20 @@ type recordType interface {
 	toRecord() Record
 }
 
-type Record map[string]interface{}
+type Record map[string]any
 
 func (r Record) AsString(field string) string {
 	if value, ok := r[field].(string); ok {
 		return value
-	} else {
-		return ""
 	}
+	return ""
 }
 
 func (r Record) AsBool(field string) bool {
 	if value, ok := r[field].(bool); ok {
 		return value
-	} else {
-		return false
 	}
+	return false
 }
 
 func (r Record) AsInt(field string) int {
@@ -115,20 +114,19 @@ func (r Record) AsUint64(field string) uint64 {
 }
 
 func (r Record) AsRecord(field string) Record {
-	if value, ok := r[field].(map[string]interface{}); ok {
+	if value, ok := r[field].(map[string]any); ok {
 		return value
-	} else {
-		return nil
 	}
+	return nil
 }
 
-func asTcpEndpoint(record Record) TcpEndpoint {
-	endpoint := TcpEndpoint{
+func asTCPEndpoint(record Record) TCPEndpoint {
+	endpoint := TCPEndpoint{
 		Name:       record.AsString("name"),
 		Host:       record.AsString("host"),
 		Port:       record.AsString("port"),
 		Address:    record.AsString("address"),
-		SiteId:     record.AsString("siteId"),
+		SiteID:     record.AsString("siteID"),
 		SslProfile: record.AsString("sslProfile"),
 		ProcessID:  record.AsString("processId"),
 	}
@@ -153,7 +151,7 @@ func asConnection(record Record) Connection {
 
 func asRouterNode(record Record) RouterNode {
 	return RouterNode{
-		Id:      record.AsString("id"),
+		ID:      record.AsString("id"),
 		Name:    record.AsString("name"),
 		Address: record.AsString("address"),
 		NextHop: record.AsString("nextHop"),
@@ -162,35 +160,31 @@ func asRouterNode(record Record) RouterNode {
 
 func asRouter(record Record) *Router {
 	r := Router{
-		Id:      record.AsString("id"),
+		ID:      record.AsString("id"),
 		Site:    GetSiteMetadata(record.AsString("metadata")),
 		Version: record.AsString("version"),
 	}
-	if record.AsString("mode") == "edge" {
-		r.Edge = true
-	} else {
-		r.Edge = false
-	}
-	r.Address = GetRouterAgentAddress(r.Id, r.Edge)
+	r.Edge = record.AsString("mode") == "edge"
+	r.Address = GetRouterAgentAddress(r.ID, r.Edge)
 	return &r
 }
 
-func (node *RouterNode) AsRouter() *Router {
+func (r *RouterNode) AsRouter() *Router {
 	return &Router{
-		Id: node.Id,
-		// SiteId ???
-		Address: node.Address,
-		Edge:    false, /*RouterNode is always an interior*/
+		ID: r.ID,
+		// SiteID ???
+		Address: r.Address,
+		Edge:    false, // RouterNode is always an interior
 	}
 }
 
 type AgentPool struct {
 	url    string
-	config TlsConfigRetriever
+	config TLSConfigRetriever
 	pool   chan *Agent
 }
 
-func NewAgentPool(url string, config TlsConfigRetriever) *AgentPool {
+func NewAgentPool(url string, config TLSConfigRetriever) *AgentPool {
 	return &AgentPool{
 		url:    url,
 		config: config,
@@ -214,12 +208,12 @@ func (p *AgentPool) Put(a *Agent) {
 		select {
 		case p.pool <- a:
 		default:
-			a.Close()
+			_ = a.Close()
 		}
 	}
 }
 
-func Connect(url string, config TlsConfigRetriever) (*Agent, error) {
+func Connect(url string, config TLSConfigRetriever) (*Agent, error) {
 	factory := ConnectionFactory{
 		url:    url,
 		config: config,
@@ -230,26 +224,29 @@ func Connect(url string, config TlsConfigRetriever) (*Agent, error) {
 func newAgent(factory *ConnectionFactory) (*Agent, error) {
 	client, err := factory.Connect()
 	if err != nil {
-		return nil, fmt.Errorf("Failed to create connection: %s", err)
+		return nil, fmt.Errorf("failed to create connection: %w", err)
 	}
-	connection := client.(*AmqpConnection)
+	connection, ok := client.(*AMQPConnection)
+	if !ok {
+		return nil, fmt.Errorf("unexpected connection type %T", client)
+	}
 	receiver, err := connection.session.NewReceiver(
 		amqp.LinkSourceAddress(""),
 		amqp.LinkAddressDynamic(),
 		amqp.LinkCredit(10),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to create receiver: %s", err)
+		return nil, fmt.Errorf("failed to create receiver: %w", err)
 	}
 	sender, err := connection.session.NewSender(
 		amqp.LinkTargetAddress("$management"),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to create sender: %s", err)
+		return nil, fmt.Errorf("failed to create sender: %w", err)
 	}
 	anonymous, err := connection.session.NewSender()
 	if err != nil {
-		return nil, fmt.Errorf("Failed to create anonymous sender: %s", err)
+		return nil, fmt.Errorf("failed to create anonymous sender: %w", err)
 	}
 	a := &Agent{
 		connection: connection.client,
@@ -260,7 +257,7 @@ func newAgent(factory *ConnectionFactory) (*Agent, error) {
 	}
 	a.local, err = a.GetLocalRouter()
 	if err != nil {
-		return a, fmt.Errorf("Failed to lookup local router details: %s", err)
+		return a, fmt.Errorf("failed to lookup local router details: %w", err)
 	}
 	return a, nil
 }
@@ -281,26 +278,25 @@ func isOk(code int) bool {
 	return code >= 200 && code < 300
 }
 
-func cleanup(input interface{}) interface{} {
-	switch input.(type) {
-	case map[interface{}]interface{}:
-		m := make(map[string]interface{})
-		for k, v := range input.(map[interface{}]interface{}) {
+func cleanup(input any) any {
+	switch input := input.(type) {
+	case map[any]any:
+		m := make(map[string]any)
+		for k, v := range input {
 			m[k.(string)] = cleanup(v)
 		}
 		return m
-	case map[string]interface{}:
-		m := input.(map[string]interface{})
-		for k, v := range m {
-			m[k] = cleanup(v)
+	case map[string]any:
+		for k, v := range input {
+			input[k] = cleanup(v)
 		}
-		return m
+		return input
 	default:
 		return input
 	}
 }
 
-func makeRecord(fields []string, values []interface{}) Record {
+func makeRecord(fields []string, values []any) Record {
 	record := Record{}
 	for i, name := range fields {
 		record[name] = cleanup(values[i])
@@ -308,7 +304,7 @@ func makeRecord(fields []string, values []interface{}) Record {
 	return record
 }
 
-func stringify(items []interface{}) []string {
+func stringify(items []any) []string {
 	s := make([]string, len(items))
 	for i := range items {
 		s[i] = fmt.Sprintf("%v", items[i])
@@ -319,20 +315,18 @@ func stringify(items []interface{}) []string {
 func GetRouterAgentAddress(id string, edge bool) string {
 	if edge {
 		return "amqp:/_edge/" + id + "/$management"
-	} else {
-		return "amqp:/_topo/0/" + id + "/$management"
 	}
+	return "amqp:/_topo/0/" + id + "/$management"
 }
 
 func GetRouterAddress(id string, edge bool) string {
 	if edge {
 		return "amqp:/_edge/" + id
-	} else {
-		return "amqp:/_topo/0/" + id
 	}
+	return "amqp:/_topo/0/" + id
 }
 
-func (a *Agent) request(operation string, typename string, name string, attributes map[string]interface{}) error {
+func (a *Agent) request(operation string, typename string, name string, attributes map[string]any) error {
 	ctx, cancel := context.WithTimeout(context.TODO(), 5*time.Second)
 	defer cancel()
 
@@ -341,7 +335,7 @@ func (a *Agent) request(operation string, typename string, name string, attribut
 	properties.ReplyTo = a.receiver.Address()
 	properties.CorrelationID = uint64(1)
 	request.Properties = &properties
-	request.ApplicationProperties = make(map[string]interface{})
+	request.ApplicationProperties = make(map[string]any)
 	request.ApplicationProperties["operation"] = operation
 	request.ApplicationProperties["type"] = typename
 	request.ApplicationProperties["name"] = name
@@ -350,18 +344,18 @@ func (a *Agent) request(operation string, typename string, name string, attribut
 	}
 
 	if err := a.sender.Send(ctx, &request); err != nil {
-		a.Close()
-		return fmt.Errorf("Could not send request: %s", err)
+		_ = a.Close()
+		return fmt.Errorf("could not send request: %w", err)
 	}
 
 	response, err := a.receiver.Receive(ctx)
 	if err != nil {
-		a.Close()
-		return fmt.Errorf("Failed to receive response: %s", err)
+		_ = a.Close()
+		return fmt.Errorf("failed to receive response: %w", err)
 	}
-	response.Accept()
+	_ = response.Accept()
 	if status, ok := AsInt(response.ApplicationProperties["statusCode"]); !ok && !isOk(status) {
-		return fmt.Errorf("Query failed with: %s", response.ApplicationProperties["statusDescription"])
+		return fmt.Errorf("query failed with: %s", response.ApplicationProperties["statusDescription"])
 	}
 	return nil
 }
@@ -380,7 +374,7 @@ func (a *Agent) Update(typename string, name string, entity recordType) error {
 
 func (a *Agent) Delete(typename string, name string) error {
 	if name == "" {
-		return fmt.Errorf("Cannot delete entity of type %s with no name", typename)
+		return fmt.Errorf("cannot delete entity of type %s with no name", typename)
 	}
 	log.Println("DELETE", typename, name)
 	return a.request("DELETE", typename, name, nil)
@@ -398,51 +392,51 @@ func (a *Agent) QueryRouterNode(typename string, attributes []string, node *Rout
 	return a.QueryByAgentAddress(typename, attributes, address)
 }
 
-func AsInt(value interface{}) (int, bool) {
-	switch value.(type) {
+func AsInt(value any) (int, bool) {
+	switch value := value.(type) {
 	case uint8:
-		return int(value.(uint8)), true
+		return int(value), true
 	case uint16:
-		return int(value.(uint16)), true
+		return int(value), true
 	case uint32:
-		return int(value.(uint32)), true
+		return int(value), true
 	case uint64:
-		return int(value.(uint64)), true
+		return int(value), true
 	case int8:
-		return int(value.(int8)), true
+		return int(value), true
 	case int16:
-		return int(value.(int16)), true
+		return int(value), true
 	case int32:
-		return int(value.(int32)), true
+		return int(value), true
 	case int64:
-		return int(value.(int64)), true
+		return int(value), true
 	case int:
-		return value.(int), true
+		return value, true
 	default:
 		return 0, false
 	}
 }
 
-func AsUint64(value interface{}) (uint64, bool) {
-	switch value.(type) {
+func AsUint64(value any) (uint64, bool) {
+	switch value := value.(type) {
 	case uint8:
-		return uint64(value.(uint8)), true
+		return uint64(value), true
 	case uint16:
-		return uint64(value.(uint16)), true
+		return uint64(value), true
 	case uint32:
-		return uint64(value.(uint32)), true
+		return uint64(value), true
 	case uint64:
-		return value.(uint64), true
+		return value, true
 	case int8:
-		return uint64(value.(int8)), true
+		return uint64(value), true
 	case int16:
-		return uint64(value.(int16)), true
+		return uint64(value), true
 	case int32:
-		return uint64(value.(int32)), true
+		return uint64(value), true
 	case int64:
-		return uint64(value.(int64)), true
+		return uint64(value), true
 	case int:
-		return uint64(value.(int)), true
+		return uint64(value), true
 	default:
 		return 0, false
 	}
@@ -457,10 +451,10 @@ func (a *Agent) QueryByAgentAddress(typename string, attributes []string, agent 
 	properties.ReplyTo = a.receiver.Address()
 	properties.CorrelationID = uint64(1)
 	request.Properties = &properties
-	request.ApplicationProperties = make(map[string]interface{})
+	request.ApplicationProperties = make(map[string]any)
 	request.ApplicationProperties["operation"] = "QUERY"
 	request.ApplicationProperties["entityType"] = typename
-	var body = make(map[string]interface{})
+	var body = make(map[string]any)
 	body["attributeNames"] = attributes
 	request.Value = body
 
@@ -472,32 +466,40 @@ func (a *Agent) QueryByAgentAddress(typename string, attributes []string, agent 
 		err = a.anonymous.Send(ctx, &request)
 	}
 	if err != nil {
-		a.Close()
-		return nil, fmt.Errorf("Could not send request: %s", err)
+		_ = a.Close()
+		return nil, fmt.Errorf("could not send request: %w", err)
 	}
 
 	response, err := a.receiver.Receive(ctx)
 	if err != nil {
-		a.Close()
-		return nil, fmt.Errorf("Failed to receive response: %s", err)
+		_ = a.Close()
+		return nil, fmt.Errorf("failed to receive response: %w", err)
 	}
-	response.Accept()
+	_ = response.Accept()
 	if status, ok := AsInt(response.ApplicationProperties["statusCode"]); ok && isOk(status) {
-		if top, ok := response.Value.(map[string]interface{}); ok {
+		if top, ok := response.Value.(map[string]any); ok {
 			records := []Record{}
-			fields := stringify(top["attributeNames"].([]interface{}))
-			results := top["results"].([]interface{})
-			for _, r := range results {
-				o := r.([]interface{})
-				records = append(records, makeRecord(fields, o))
+			attrNames, ok := top["attributeNames"].([]any)
+			if !ok {
+				return nil, fmt.Errorf("bad response attribute names: %v", top["attributeNames"])
+			}
+			fields := stringify(attrNames)
+			results, ok := top["results"].([]any)
+			if !ok {
+				return nil, fmt.Errorf("bad response results: %v", top["results"])
+			}
+			for _, row := range results {
+				rowValues, ok := row.([]any)
+				if !ok {
+					return nil, fmt.Errorf("bad response row: %v", row)
+				}
+				records = append(records, makeRecord(fields, rowValues))
 			}
 			return records, nil
-		} else {
-			return nil, fmt.Errorf("Bad response: %s", response.Value)
 		}
-	} else {
-		return nil, fmt.Errorf("Query failed with: %s", response.ApplicationProperties["statusDescription"])
+		return nil, fmt.Errorf("bad response: %s", response.Value)
 	}
+	return nil, fmt.Errorf("query failed with: %s", response.ApplicationProperties["statusDescription"])
 }
 
 type Query struct {
@@ -541,7 +543,7 @@ func queryAllAgentsForAllTypes(typenames []string, agents []string) []Query {
 }
 
 func (a *Agent) BatchQuery(queries []Query) ([][]Record, error) {
-	fmt.Printf("BatchQuery(%v)\n", queries)
+	_, _ = fmt.Printf("BatchQuery(%v)\n", queries)
 	ctx, cancel := context.WithTimeout(context.TODO(), 5*time.Second)
 	defer cancel()
 
@@ -552,10 +554,10 @@ func (a *Agent) BatchQuery(queries []Query) ([][]Record, error) {
 		properties.ReplyTo = a.receiver.Address()
 		properties.CorrelationID = uint64(i)
 		request.Properties = &properties
-		request.ApplicationProperties = make(map[string]interface{})
+		request.ApplicationProperties = make(map[string]any)
 		request.ApplicationProperties["operation"] = "QUERY"
 		request.ApplicationProperties["entityType"] = q.typename
-		var body = make(map[string]interface{})
+		var body = make(map[string]any)
 		body["attributeNames"] = q.attributes
 		request.Value = body
 
@@ -567,43 +569,56 @@ func (a *Agent) BatchQuery(queries []Query) ([][]Record, error) {
 			err = a.anonymous.Send(ctx, &request)
 		}
 		if err != nil {
-			a.Close()
-			return nil, fmt.Errorf("Could not send request: %s", err)
+			_ = a.Close()
+			return nil, fmt.Errorf("could not send request: %w", err)
 		}
 	}
 	errors := []string{}
 	for i := 0; i < len(queries); i++ {
-		fmt.Printf("Waiting for response %d of %d\n", (i + 1), len(queries))
+		_, _ = fmt.Printf("Waiting for response %d of %d\n", (i + 1), len(queries))
 		response, err := a.receiver.Receive(ctx)
 		if err != nil {
-			a.Close()
-			return nil, fmt.Errorf("Failed to receive response: %s", err)
+			_ = a.Close()
+			return nil, fmt.Errorf("failed to receive response: %w", err)
 		}
-		response.Accept()
+		_ = response.Accept()
 		responseIndex, ok := response.Properties.CorrelationID.(uint64)
 		if !ok {
 			errors = append(errors, fmt.Sprintf("Could not get correct correlation id from response: %#v (%T)", response.Properties.CorrelationID, response.Properties.CorrelationID))
 		} else {
 			if status, ok := AsInt(response.ApplicationProperties["statusCode"]); ok && isOk(status) {
-				if top, ok := response.Value.(map[string]interface{}); ok {
+				if top, ok := response.Value.(map[string]any); ok {
 					records := []Record{}
-					fields := stringify(top["attributeNames"].([]interface{}))
-					results := top["results"].([]interface{})
-					for _, r := range results {
-						o := r.([]interface{})
-						records = append(records, makeRecord(fields, o))
+					attrNames, ok := top["attributeNames"].([]any)
+					if !ok {
+						errors = append(errors, fmt.Sprintf("bad response attribute names: %v", top["attributeNames"]))
+						continue
+					}
+					fields := stringify(attrNames)
+					results, ok := top["results"].([]any)
+					if !ok {
+						errors = append(errors, fmt.Sprintf("bad response results: %v", top["results"]))
+						continue
+					}
+					for _, row := range results {
+						rowValues, ok := row.([]any)
+						if !ok {
+							errors = append(errors, fmt.Sprintf("bad response row: %v", row))
+							continue
+						}
+						records = append(records, makeRecord(fields, rowValues))
 					}
 					batchResults[responseIndex] = records
 				} else {
-					errors = append(errors, fmt.Sprintf("Bad response: %s", response.Value))
+					errors = append(errors, fmt.Sprintf("bad response: %s", response.Value))
 				}
 			} else {
-				errors = append(errors, fmt.Sprintf("Query failed with: %s", response.ApplicationProperties["statusDescription"]))
+				errors = append(errors, fmt.Sprintf("query failed with: %s", response.ApplicationProperties["statusDescription"]))
 			}
 		}
 	}
 	if len(errors) > 0 {
-		return nil, fmt.Errorf(strings.Join(errors, ", "))
+		return nil, fmt.Errorf("%s", strings.Join(errors, ", "))
 	}
 	return batchResults, nil
 }
@@ -614,14 +629,14 @@ func (a *Agent) GetInteriorNodes() ([]RouterNode, error) {
 	if a.isEdgeRouter() {
 		address, err = a.getInteriorAddressForUplink()
 		if err != nil {
-			return nil, fmt.Errorf("Could not determine interior agent address for edge router: %s", err)
+			return nil, fmt.Errorf("could not determine interior agent address for edge router: %w", err)
 		}
 	}
 	records, err := a.QueryByAgentAddress("io.skupper.router.router.node", []string{}, address)
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("Interior nodes are %v\n", records)
+	_, _ = fmt.Printf("Interior nodes are %v\n", records)
 	nodes := make([]RouterNode, len(records))
 	for i, r := range records {
 		nodes[i] = asRouterNode(r)
@@ -656,15 +671,15 @@ func getAddressesFor(routers []Router) []string {
 func getBridgeServerAddressesFor(routers []Router) []string {
 	agents := make([]string, len(routers))
 	for i, r := range routers {
-		agents[i] = r.Id + "/bridge-server/$management"
+		agents[i] = r.ID + "/bridge-server/$management"
 	}
 	return agents
 }
 
-func GetRoutersForSite(routers []Router, siteId string) []Router {
+func GetRoutersForSite(routers []Router, siteID string) []Router {
 	list := []Router{}
 	for _, r := range routers {
-		if r.Site.Id == siteId {
+		if r.Site.ID == siteID {
 			list = append(list, r)
 		}
 	}
@@ -685,10 +700,8 @@ func (a *Agent) GetAllRouters() ([]Router, error) {
 	if err != nil {
 		return nil, err
 	}
-	for _, e := range edges {
-		routers = append(routers, e)
-	}
-	err = a.getSiteIds(routers)
+	routers = append(routers, edges...)
+	err = a.getSiteIDs(routers)
 	if err != nil {
 		return nil, err
 	}
@@ -698,16 +711,14 @@ func (a *Agent) GetAllRouters() ([]Router, error) {
 				continue
 			}
 			// podman svc
-			if strings.HasPrefix(edgeId, r.Site.Id+"-") {
-				return true
-			} else if strings.HasSuffix(edgeId, "-"+r.Site.Id) {
+			if strings.HasPrefix(edgeId, r.Site.ID+"-") || strings.HasSuffix(edgeId, "-"+r.Site.ID) {
 				return true
 			}
 		}
 		return false
 	}
 	for _, r := range routers {
-		if !r.Edge || !isSvcRouter(r.Site.Id) {
+		if !r.Edge || !isSvcRouter(r.Site.ID) {
 			routersFiltered = append(routersFiltered, r)
 		}
 	}
@@ -733,7 +744,7 @@ func (a *Agent) getConnectionsForAll(agents []string) ([]Connection, error) {
 	return connections, nil
 }
 
-func (a *Agent) getSiteIds(routers []Router) error {
+func (a *Agent) getSiteIDs(routers []Router) error {
 	results, err := a.BatchQuery(queryAllAgents("io.skupper.router.router", getAddressesFor(routers)))
 	if err != nil {
 		return err
@@ -742,7 +753,7 @@ func (a *Agent) getSiteIds(routers []Router) error {
 		if len(records) == 1 {
 			routers[i].Site = GetSiteMetadata(records[0].AsString("metadata"))
 		} else {
-			return fmt.Errorf("Unexpected number of router records: %d", len(records))
+			return fmt.Errorf("unexpected number of router records: %d", len(records))
 		}
 	}
 	return nil
@@ -774,12 +785,12 @@ func getBridgeTypes() []string {
 	}
 }
 
-type TcpEndpointFilter func(*TcpEndpoint) bool
+type TCPEndpointFilter func(*TCPEndpoint) bool
 
-func asTcpEndpoints(records []Record, filter TcpEndpointFilter) []TcpEndpoint {
-	endpoints := []TcpEndpoint{}
+func asTCPEndpoints(records []Record, filter TCPEndpointFilter) []TCPEndpoint {
+	endpoints := []TCPEndpoint{}
 	for _, record := range records {
-		endpoint := asTcpEndpoint(record)
+		endpoint := asTCPEndpoint(record)
 		if filter == nil || filter(&endpoint) {
 			endpoints = append(endpoints, endpoint)
 		}
@@ -787,23 +798,21 @@ func asTcpEndpoints(records []Record, filter TcpEndpointFilter) []TcpEndpoint {
 	return endpoints
 }
 
-func (a *Agent) getLocalTcpEndpoints(typename string, filter TcpEndpointFilter) ([]TcpEndpoint, error) {
+func (a *Agent) getLocalTCPEndpoints(typename string, filter TCPEndpointFilter) ([]TCPEndpoint, error) {
 	results, err := a.Query(typename, []string{})
 	if err != nil {
 		return nil, err
 	}
-	records := asTcpEndpoints(results, filter)
+	records := asTCPEndpoints(results, filter)
 	return records, nil
 }
 
 func (a *Agent) GetConnectorByName(name string) (*Connector, error) {
-
 	results, err := a.Query("io.skupper.router.connector", []string{})
 	if err != nil {
 		return nil, err
 	}
 	for _, record := range results {
-
 		result := asConnector(record)
 
 		if result.Name == name {
@@ -815,13 +824,11 @@ func (a *Agent) GetConnectorByName(name string) (*Connector, error) {
 }
 
 func (a *Agent) GetSslProfileByName(name string) (*SslProfile, error) {
-
 	results, err := a.Query("io.skupper.router.sslProfile", []string{})
 	if err != nil {
 		return nil, err
 	}
 	for _, record := range results {
-
 		result := asSslProfile(record)
 
 		if result.Name == name {
@@ -846,12 +853,12 @@ func (a *Agent) GetSslProfiles() (map[string]SslProfile, error) {
 	return profiles, nil
 }
 
-func (a *Agent) GetLocalTcpListeners(filter TcpEndpointFilter) ([]TcpEndpoint, error) {
-	return a.getLocalTcpEndpoints("io.skupper.router.tcpListener", filter)
+func (a *Agent) GetLocalTCPListeners(filter TCPEndpointFilter) ([]TCPEndpoint, error) {
+	return a.getLocalTCPEndpoints("io.skupper.router.tcpListener", filter)
 }
 
-func (a *Agent) GetLocalTcpConnectors(filter TcpEndpointFilter) ([]TcpEndpoint, error) {
-	return a.getLocalTcpEndpoints("io.skupper.router.tcpConnector", filter)
+func (a *Agent) GetLocalTCPConnectors(filter TCPEndpointFilter) ([]TCPEndpoint, error) {
+	return a.getLocalTCPEndpoints("io.skupper.router.tcpConnector", filter)
 }
 
 func (a *Agent) GetLocalBridgeConfig() (*BridgeConfig, error) {
@@ -862,7 +869,7 @@ func (a *Agent) GetLocalBridgeConfig() (*BridgeConfig, error) {
 		return nil, err
 	}
 	for _, record := range results {
-		config.AddTcpConnector(asTcpEndpoint(record))
+		config.AddTCPConnector(asTCPEndpoint(record))
 	}
 
 	results, err = a.Query("io.skupper.router.tcpListener", []string{})
@@ -870,31 +877,31 @@ func (a *Agent) GetLocalBridgeConfig() (*BridgeConfig, error) {
 		return nil, err
 	}
 	for _, record := range results {
-		config.AddTcpListener(asTcpEndpoint(record))
+		config.AddTCPListener(asTCPEndpoint(record))
 	}
 
 	return &config, nil
 }
 
 func (a *Agent) UpdateLocalBridgeConfig(changes *BridgeConfigDifference) error {
-	for _, deleted := range changes.TcpConnectors.Deleted {
+	for _, deleted := range changes.TCPConnectors.Deleted {
 		if err := a.Delete("io.skupper.router.tcpConnector", deleted); err != nil {
-			return fmt.Errorf("Error deleting tcp connectors: %s", err)
+			return fmt.Errorf("error deleting tcp connectors: %w", err)
 		}
 	}
-	for _, deleted := range changes.TcpListeners.Deleted {
+	for _, deleted := range changes.TCPListeners.Deleted {
 		if err := a.Delete("io.skupper.router.tcpListener", deleted); err != nil {
-			return fmt.Errorf("Error deleting tcp listeners: %s", err)
+			return fmt.Errorf("error deleting tcp listeners: %w", err)
 		}
 	}
-	for _, added := range changes.TcpConnectors.Added {
+	for _, added := range changes.TCPConnectors.Added {
 		if err := a.Create("io.skupper.router.tcpConnector", added.Name, added); err != nil {
-			return fmt.Errorf("Error adding tcp connectors: %s", err)
+			return fmt.Errorf("error adding tcp connectors: %w", err)
 		}
 	}
-	for _, added := range changes.TcpListeners.Added {
+	for _, added := range changes.TCPListeners.Added {
 		if err := a.Create("io.skupper.router.tcpListener", added.Name, added); err != nil {
-			return fmt.Errorf("Error adding tcp listeners: %s", err)
+			return fmt.Errorf("error adding tcp listeners: %w", err)
 		}
 	}
 	return nil
@@ -911,14 +918,14 @@ func (a *Agent) GetBridges(routers []Router) ([]BridgeConfig, error) {
 			return nil, err
 		}
 		for _, record := range results {
-			config.AddTcpConnector(asTcpEndpoint(record))
+			config.AddTCPConnector(asTCPEndpoint(record))
 		}
 		results, err = a.QueryByAgentAddress("io.skupper.router.tcpListener", []string{}, agent)
 		if err != nil {
 			return nil, err
 		}
 		for _, record := range results {
-			config.AddTcpListener(asTcpEndpoint(record))
+			config.AddTCPListener(asTCPEndpoint(record))
 		}
 
 		configs = append(configs, config)
@@ -931,7 +938,7 @@ const (
 	DirectionOut string = "out"
 )
 
-type TcpConnection struct {
+type TCPConnection struct {
 	Name      string `json:"name"`
 	Host      string `json:"host"`
 	Address   string `json:"address"`
@@ -943,27 +950,27 @@ type TcpConnection struct {
 	LastOut   uint64 `json:"lastOutSeconds"`
 }
 
-func getTcpConnectionsFromRecords(records []Record) ([]TcpConnection, error) {
-	conns := []TcpConnection{}
+func getTCPConnectionsFromRecords(records []Record) ([]TCPConnection, error) {
+	conns := []TCPConnection{}
 	for _, record := range records {
-		var conn TcpConnection
+		var conn TCPConnection
 		if err := convert(record, &conn); err != nil {
-			return conns, fmt.Errorf("Failed to convert to TcpConnection: %s", err)
+			return conns, fmt.Errorf("failed to convert to TCPConnection: %w", err)
 		}
 		conns = append(conns, conn)
 	}
 	return conns, nil
 }
 
-func (a *Agent) GetTcpConnections(routers []Router) ([][]TcpConnection, error) {
+func (a *Agent) GetTCPConnections(routers []Router) ([][]TCPConnection, error) {
 	queries := queryAllAgents("io.skupper.router.tcpConnection", getAddressesFor(routers))
 	results, err := a.BatchQuery(queries)
 	if err != nil {
 		return nil, err
 	}
-	converted := [][]TcpConnection{}
+	converted := [][]TCPConnection{}
 	for _, records := range results {
-		conns, err := getTcpConnectionsFromRecords(records)
+		conns, err := getTCPConnectionsFromRecords(records)
 		if err != nil {
 			return converted, err
 		}
@@ -972,12 +979,12 @@ func (a *Agent) GetTcpConnections(routers []Router) ([][]TcpConnection, error) {
 	return converted, nil
 }
 
-func (a *Agent) GetLocalTcpConnections() ([]TcpConnection, error) {
+func (a *Agent) GetLocalTCPConnections() ([]TCPConnection, error) {
 	records, err := a.Query("io.skupper.router.tcpConnection", []string{})
 	if err != nil {
 		return nil, err
 	}
-	return getTcpConnectionsFromRecords(records)
+	return getTCPConnectionsFromRecords(records)
 }
 
 func (a *Agent) getAllEdgeRouters(agents []string) ([]Router, error) {
@@ -990,7 +997,7 @@ func (a *Agent) getAllEdgeRouters(agents []string) ([]Router, error) {
 	for _, c := range connections {
 		if c.Role == "edge" && c.Dir == DirectionIn {
 			router := Router{
-				Id:      c.Container,
+				ID:      c.Container,
 				Edge:    true,
 				Address: GetRouterAddress(c.Container, true),
 			}
@@ -1009,7 +1016,7 @@ func (a *Agent) getEdgeRouters(agent string) ([]Router, error) {
 	for _, c := range connections {
 		if c.Role == "edge" && c.Dir == DirectionIn {
 			router := Router{
-				Id:      c.Container,
+				ID:      c.Container,
 				Edge:    true,
 				Address: GetRouterAddress(c.Container, true),
 			}
@@ -1028,14 +1035,14 @@ func (a *Agent) GetLocalGateways() ([]Router, error) {
 	for _, c := range connections {
 		if c.Role == "edge" && c.Dir == DirectionIn && isGateway(c.Container) {
 			router := Router{
-				Id:      c.Container,
+				ID:      c.Container,
 				Edge:    true,
 				Address: GetRouterAddress(c.Container, true),
 			}
 			gateways = append(gateways, router)
 		}
 	}
-	err = a.getSiteIds(gateways)
+	err = a.getSiteIDs(gateways)
 	return gateways, err
 }
 
@@ -1046,9 +1053,8 @@ func (a *Agent) GetLocalRouter() (*Router, error) {
 	}
 	if len(records) == 1 {
 		return asRouter(records[0]), nil
-	} else {
-		return nil, fmt.Errorf("Unexpected number of router records: %d", len(records))
 	}
+	return nil, fmt.Errorf("unexpected number of router records: %d", len(records))
 }
 
 func (a *Agent) isEdgeRouter() bool {
@@ -1069,7 +1075,7 @@ func GetInteriorAddressForUplink(connections []Connection) (string, error) {
 			return GetRouterAgentAddress(c.Container, false), nil
 		}
 	}
-	return "", fmt.Errorf("Could not find uplink connection")
+	return "", errors.New("could not find uplink connection")
 }
 
 type ConnectorStatus struct {
@@ -1121,8 +1127,8 @@ func asListener(record Record) Listener {
 		AuthenticatePeer: record.AsBool("authenticatePeer"),
 		SaslMechanisms:   record.AsString("saslMechanisms"),
 		RouteContainer:   record.AsBool("routeContainer"),
-		Http:             record.AsBool("http"),
-		HttpRootDir:      record.AsString("httpRootDir"),
+		HTTP:             record.AsBool("http"),
+		HTTPRootDir:      record.AsString("httpRootDir"),
 		Websockets:       record.AsBool("websockets"),
 		Healthz:          record.AsBool("healthz"),
 		Metrics:          record.AsBool("metrics"),
@@ -1144,18 +1150,17 @@ func asSslProfile(record Record) SslProfile {
 func (a *Agent) UpdateConnectorConfig(changes *ConnectorDifference) error {
 	for _, deleted := range changes.Deleted {
 		if err := a.Delete("io.skupper.router.connector", deleted.Name); err != nil {
-			return fmt.Errorf("Error deleting connectors: %s", err)
+			return fmt.Errorf("error deleting connectors: %w", err)
 		}
 	}
 
 	for _, added := range changes.Added {
-
 		if len(added.Host) == 0 {
-			return fmt.Errorf("No host specified while creating a connector")
+			return errors.New("no host specified while creating a connector")
 		}
 
 		if len(added.Port) == 0 {
-			return fmt.Errorf("No port specified while creating a connector")
+			return errors.New("no port specified while creating a connector")
 		}
 
 		if len(added.SslProfile) > 0 {
@@ -1187,9 +1192,8 @@ func (a *Agent) UpdateConnectorConfig(changes *ConnectorDifference) error {
 		}
 
 		if err := a.Create("io.skupper.router.connector", added.Name, added); err != nil {
-			return fmt.Errorf("Error adding connectors: %s", err)
+			return fmt.Errorf("error adding connectors: %w", err)
 		}
-
 	}
 
 	return nil
@@ -1224,15 +1228,14 @@ func (a *Agent) GetLocalConnectors() (map[string]Connector, error) {
 func (a *Agent) UpdateListenerConfig(changes *ListenerDifference) error {
 	for _, deleted := range changes.Deleted {
 		if err := a.Delete("io.skupper.router.listener", deleted.Name); err != nil {
-			return fmt.Errorf("Error deleting listeners: %s", err)
+			return fmt.Errorf("error deleting listeners: %w", err)
 		}
 	}
 
 	for _, added := range changes.Added {
 		if err := a.Create("io.skupper.router.listener", added.Name, added); err != nil {
-			return fmt.Errorf("Error adding listeners: %s", err)
+			return fmt.Errorf("error adding listeners: %w", err)
 		}
-
 	}
 
 	return nil
@@ -1261,7 +1264,7 @@ func (a *Agent) Request(request *Request) (*Response, error) {
 			Subject: request.Type,
 			ReplyTo: a.receiver.Address(),
 		},
-		ApplicationProperties: map[string]interface{}{},
+		ApplicationProperties: map[string]any{},
 		Value:                 nil,
 	}
 	if request.Body != "" {
@@ -1274,15 +1277,15 @@ func (a *Agent) Request(request *Request) (*Response, error) {
 
 	err := a.anonymous.Send(ctx, &requestMsg)
 	if err != nil {
-		a.Close()
-		return nil, fmt.Errorf("Could not send %s request: %s", request.Type, err)
+		_ = a.Close()
+		return nil, fmt.Errorf("could not send %s request: %w", request.Type, err)
 	}
 	responseMsg, err := a.receiver.Receive(ctx)
 	if err != nil {
-		a.Close()
-		return nil, fmt.Errorf("Failed to receive response: %s", err)
+		_ = a.Close()
+		return nil, fmt.Errorf("failed to receive response: %w", err)
 	}
-	responseMsg.Accept()
+	_ = responseMsg.Accept()
 
 	response := Response{
 		Type: responseMsg.Properties.Subject,
@@ -1303,19 +1306,18 @@ func (a *Agent) Request(request *Request) (*Response, error) {
 }
 
 func (r *Router) IsGateway() bool {
-	return isGateway(r.Id)
+	return isGateway(r.ID)
 }
 
-func isGateway(routerId string) bool {
-	return strings.HasPrefix(routerId, "skupper-gateway-")
+func isGateway(routerID string) bool {
+	return strings.HasPrefix(routerID, "skupper-gateway-")
 }
 
 func GetSiteNameForGateway(gateway *Router) string {
-	return strings.TrimPrefix(gateway.Id, "skupper-gateway-")
+	return strings.TrimPrefix(gateway.ID, "skupper-gateway-")
 }
 
 func (a *Agent) CreateSslProfile(profile SslProfile) error {
-
 	result, err := a.GetSslProfileByName(profile.Name)
 	if err != nil {
 		return err
@@ -1327,14 +1329,13 @@ func (a *Agent) CreateSslProfile(profile SslProfile) error {
 	}
 
 	if err := a.Create("io.skupper.router.sslProfile", profile.Name, profile); err != nil {
-		return fmt.Errorf("Error adding SSL Profile: %s", err)
+		return fmt.Errorf("error adding SSL Profile: %w", err)
 	}
 
 	return nil
 }
 
 func (a *Agent) ReloadSslProfile(name string) error {
-
 	profile, err := a.GetSslProfileByName(name)
 	if err != nil {
 		return err
@@ -1342,21 +1343,21 @@ func (a *Agent) ReloadSslProfile(name string) error {
 
 	// A profile is expected to be returned
 	if profile == nil {
-		return fmt.Errorf("No SSL Profile with name %s found", name)
+		return fmt.Errorf("no SSL Profile with name %s found", name)
 	}
 
 	if err := a.Update("io.skupper.router.sslProfile", profile.Name, profile); err != nil {
-		return fmt.Errorf("Error updating SSL Profile: %s", err)
+		return fmt.Errorf("error updating SSL Profile: %w", err)
 	}
 
 	return nil
 }
 
-func ConnectedSitesInfo(selfId string, routers []Router) types.TransportConnectedSites {
+func ConnectedSitesInfo(selfID string, routers []Router) types.TransportConnectedSites {
 	var connectedSites types.TransportConnectedSites
 	var self *Router
 	for _, r := range routers {
-		if r.Site.Id == selfId {
+		if r.Site.ID == selfID {
 			self = &r
 			break
 		}
@@ -1368,8 +1369,8 @@ func ConnectedSitesInfo(selfId string, routers []Router) types.TransportConnecte
 		if r.Edge && len(r.ConnectedTo) > 1 {
 			connectedSites.Warnings = append(connectedSites.Warnings, "There are edge uplinks to distinct networks, please verify topology (connected counts may not be accurate).")
 		}
-		if utils.StringSliceContains(r.ConnectedTo, self.Id) {
-			connectedSites.Direct += 1
+		if utils.StringSliceContains(r.ConnectedTo, self.ID) {
+			connectedSites.Direct++
 		}
 	}
 	connectedSites.Total = len(routers) - 1
