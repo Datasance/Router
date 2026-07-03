@@ -1,7 +1,8 @@
 # Plan 5 spike — Debian Trixie compile for linux/arm/v7 and linux/riscv64.
 # UBI Dockerfile handles amd64/arm64; this file mirrors /image layout → scratch.
 
-FROM debian:trixie AS builder
+# debian:trixie — pin manifest list digest
+FROM debian:trixie@sha256:d07d1b51c39f51188e60be9b64e6bf769fa94e187f092bc32b91305cfa34ba5a AS builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc g++ make cmake pkg-config \
@@ -56,7 +57,8 @@ RUN mkdir -p /image \
 
 RUN mkdir /image/licenses && cp ./LICENSE /image/licenses
 
-FROM debian:trixie AS packager
+# debian:trixie — pin manifest list digest
+FROM debian:trixie@sha256:d07d1b51c39f51188e60be9b64e6bf769fa94e187f092bc32b91305cfa34ba5a AS packager
 
 # UBI installroot analogue: download only runtime .debs + hard deps, extract to /output.
 ENV ROOTFS=/output
@@ -82,7 +84,8 @@ RUN rm -rf \
  && find "${ROOTFS}/usr/lib" -name 'libapt*.so*' -delete \
  && find "${ROOTFS}/usr/lib" -path '*/python3*' -type d \( -name test -o -name idlelib -o -name tkinter -o -name ensurepip \) -exec rm -rf {} + 2>/dev/null || true
 
-FROM golang:1.26.4-alpine AS go-builder
+# golang:1.26.4-alpine — pin manifest list digest
+FROM golang:1.26.4-alpine@sha256:3ad57304ad93bbec8548a0437ad9e06a455660655d9af011d58b993f6f615648 AS go-builder
 
 ARG TARGETOS
 ARG TARGETARCH
@@ -97,7 +100,8 @@ RUN if [ "$TARGETARCH" = "arm" ]; then \
       GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags="-s -w" -o bin/router .; \
     fi
 
-FROM debian:trixie-slim AS tz
+# debian:trixie-slim — pin manifest list digest
+FROM debian:trixie-slim@sha256:28de0877c2189802884ccd20f15ee41c203573bd87bb6b883f5f46362d24c5c2 AS tz
 RUN apt-get update && apt-get install -y --no-install-recommends tzdata \
  && rm -rf /var/lib/apt/lists/*
 
@@ -119,7 +123,7 @@ USER 10000
 COPY --from=builder /image /
 
 WORKDIR /home/skrouterd/bin
-COPY ./scripts/* /home/skrouterd/bin/
+COPY scripts/launch.sh /home/skrouterd/bin/launch.sh
 
 ENV VERSION=${OCI_VERSION}
 ENV QDROUTERD_HOME=/home/skrouterd

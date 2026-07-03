@@ -1,4 +1,5 @@
-FROM registry.access.redhat.com/ubi9/ubi-minimal:latest AS builder
+# registry.access.redhat.com/ubi9/ubi-minimal:latest — pin manifest list digest
+FROM registry.access.redhat.com/ubi9/ubi-minimal@sha256:463cae32c6f6f5594b11a5c22de275016bd8545ce58a6373388e8b24f13fc15c AS builder
 
 # upgrade first to avoid fixable vulnerabilities
 # do this in builder as well as in buildee, so builder does not have different pkg versions from buildee image
@@ -38,7 +39,8 @@ RUN if [ "$PLATFORM" = "ppc64le" ]; then tar zxpf /qpid-proton-image.tar.gz -C /
 
 RUN mkdir /image/licenses && cp ./LICENSE /image/licenses
 
-FROM registry.access.redhat.com/ubi9/ubi:latest AS packager
+# registry.access.redhat.com/ubi9/ubi:latest — pin manifest list digest
+FROM registry.access.redhat.com/ubi9/ubi@sha256:8bf0e8f20737e9c8a68c8a498299e9504ab397b1b1f2837acb2fef12ec698f0e AS packager
 
 RUN dnf -y --setopt=install_weak_deps=0 --nodocs \
     --installroot /output install \
@@ -54,7 +56,8 @@ RUN dnf -y --setopt=install_weak_deps=0 --nodocs \
 RUN [ -d /usr/share/buildinfo ] && cp -a /usr/share/buildinfo /output/usr/share/buildinfo ||:
 RUN [ -d /root/buildinfo ] && cp -a /root/buildinfo /output/root/buildinfo ||:
 
-FROM golang:1.26.4-alpine AS go-builder
+# golang:1.26.4-alpine — pin manifest list digest
+FROM golang:1.26.4-alpine@sha256:3ad57304ad93bbec8548a0437ad9e06a455660655d9af011d58b993f6f615648 AS go-builder
 
 ARG TARGETOS
 ARG TARGETARCH
@@ -65,7 +68,8 @@ COPY . /go/src/github.com/eclipse-iofog/router
 RUN go fmt ./...
 RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath  -ldflags="-s -w" -o bin/router .
 
-FROM registry.access.redhat.com/ubi9/ubi-minimal:latest AS tz
+# registry.access.redhat.com/ubi9/ubi-minimal:latest — pin manifest list digest
+FROM registry.access.redhat.com/ubi9/ubi-minimal@sha256:463cae32c6f6f5594b11a5c22de275016bd8545ce58a6373388e8b24f13fc15c AS tz
 RUN microdnf install -y tzdata && microdnf reinstall -y tzdata
 
 FROM scratch
@@ -88,7 +92,7 @@ USER 10000
 COPY --from=builder /image /
 
 WORKDIR /home/skrouterd/bin
-COPY ./scripts/* /home/skrouterd/bin/
+COPY scripts/launch.sh /home/skrouterd/bin/launch.sh
 
 ENV VERSION=${OCI_VERSION}
 ENV QDROUTERD_HOME=/home/skrouterd

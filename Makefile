@@ -59,8 +59,8 @@ vulncheck:
 		echo "Installing govulncheck..."; \
 		go install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION); \
 	fi
-	@chmod +x scripts/vulncheck.sh
-	@scripts/vulncheck.sh
+	@chmod +x hack/vulncheck.sh
+	@hack/vulncheck.sh
 	@echo "Verifying module integrity..."
 	@go mod verify
 
