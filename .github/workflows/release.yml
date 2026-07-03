@@ -21,7 +21,7 @@ jobs:
         uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: ${{ env.GO_VERSION }}
-          cache-dependency-path: go.sum
+          cache: false
 
       - run: go version
 
@@ -86,8 +86,6 @@ jobs:
           file: Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
           build-args: |
             OCI_SOURCE_REPO=${{ env.OCI_SOURCE_REPO }}
             OCI_VERSION=${{ env.SEMVER }}
@@ -141,8 +139,6 @@ jobs:
           file: Dockerfile.edge
           platforms: linux/arm/v7,linux/riscv64
           push: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
           build-args: |
             OCI_SOURCE_REPO=${{ env.OCI_SOURCE_REPO }}
             OCI_VERSION=${{ env.SEMVER }}
