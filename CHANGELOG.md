@@ -1,5 +1,21 @@
 # Changelog
 
+## [v3.8.1] - 2026-07-10
+
+### Wrapper release
+
+- **v3.8.1** — patch release aligning with **iofog-go-sdk v3.8.1**.
+- Go toolchain **1.26.5** (was 1.26.4).
+
+### SDK and LocalAPI
+
+- **iofog-go-sdk v3.8.1** (`github.com/eclipse-iofog/iofog-go-sdk/v3`) — upgrade from v3.8.0-rc.2.
+
+### CI and release
+
+- **`ci.yml`**, **`release.yml`**, **`govulncheck.yml`**: Go **1.26.5** in workflow env.
+- **`Dockerfile`**, **`Dockerfile.dev`**, **`Dockerfile.edge`**: `golang:1.26.5-alpine` builder image (digest-pinned in prod/edge).
+
 ## [v3.8.0] - 2026-06-17
 
 ### Wrapper release

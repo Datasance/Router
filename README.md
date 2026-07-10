@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/eclipse-iofog/router/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/eclipse-iofog/router/actions/workflows/ci.yml)
 [![Release](https://github.com/eclipse-iofog/router/actions/workflows/release.yml/badge.svg)](https://github.com/eclipse-iofog/router/actions/workflows/release.yml)
-[![Go](https://img.shields.io/badge/Go-1.26.4-00ADD8?logo=go&logoColor=white)](https://go.dev/)
+[![Go](https://img.shields.io/badge/Go-1.26.5-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 
 Go wrapper image for **[skupper-router](https://github.com/skupperproject/skupper-router)** used by **Eclipse ioFog** and **Datasance PoT** edge fleets. The wrapper supervises embedded **`skrouterd`** with config watch and AMQP hot reload.
 

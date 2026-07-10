@@ -1,9 +1,9 @@
 module github.com/eclipse-iofog/router
 
-go 1.26.4
+go 1.26.5
 
 require (
-	github.com/eclipse-iofog/iofog-go-sdk/v3 v3.8.0-rc.2
+	github.com/eclipse-iofog/iofog-go-sdk/v3 v3.8.1
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/interconnectedcloud/go-amqp v0.12.6-0.20200506124159-f51e540008b5
 	gotest.tools/v3 v3.5.2

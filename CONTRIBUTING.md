@@ -29,7 +29,7 @@ Do **not** use the legacy **`iofog/merge`** branch — it is abandoned in favor 
 
 ## Development setup
 
-- **Go 1.26.4** (see `go.mod`).
+- **Go 1.26.5** (see `go.mod`).
 - `make test`, `make fmt-check`, `make security-code` before pushing.
 - Local wrapper overlay: `Dockerfile.dev` (upstream `quay.io/skupper/skupper-router:3.5.1` image).
 
