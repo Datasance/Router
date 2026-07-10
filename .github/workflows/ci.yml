@@ -109,8 +109,6 @@ jobs:
           platforms: ${{ matrix.platform }}
           load: true
           push: false
-          cache-from: type=gha,scope=router-${{ matrix.slug }}
-          cache-to: type=gha,mode=max,scope=router-${{ matrix.slug }}
           build-args: |
             OCI_SOURCE_REPO=${{ env.OCI_SOURCE_REPO }}
             OCI_VERSION=ci
