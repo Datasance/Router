@@ -2,7 +2,7 @@
 # UBI Dockerfile handles amd64/arm64; this file mirrors /image layout → scratch.
 
 # debian:trixie — pin manifest list digest
-FROM debian:trixie@sha256:d07d1b51c39f51188e60be9b64e6bf769fa94e187f092bc32b91305cfa34ba5a AS builder
+FROM debian:trixie@sha256:fac46bff2e02f51425b6e33b0e1169f55dfb053d83511ca28aa50c09fd5ed7a4 AS builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc g++ make cmake pkg-config \
@@ -58,7 +58,7 @@ RUN mkdir -p /image \
 RUN mkdir /image/licenses && cp ./LICENSE /image/licenses
 
 # debian:trixie — pin manifest list digest
-FROM debian:trixie@sha256:d07d1b51c39f51188e60be9b64e6bf769fa94e187f092bc32b91305cfa34ba5a AS packager
+FROM debian:trixie@sha256:fac46bff2e02f51425b6e33b0e1169f55dfb053d83511ca28aa50c09fd5ed7a4 AS packager
 
 # UBI installroot analogue: download only runtime .debs + hard deps, extract to /output.
 ENV ROOTFS=/output
@@ -101,7 +101,7 @@ RUN if [ "$TARGETARCH" = "arm" ]; then \
     fi
 
 # debian:trixie-slim — pin manifest list digest
-FROM debian:trixie-slim@sha256:28de0877c2189802884ccd20f15ee41c203573bd87bb6b883f5f46362d24c5c2 AS tz
+FROM debian:trixie-slim@sha256:020c0d20b9880058cbe785a9db107156c3c75c2ac944a6aa7ab59f2add76a7bd AS tz
 RUN apt-get update && apt-get install -y --no-install-recommends tzdata \
  && rm -rf /var/lib/apt/lists/*
 
