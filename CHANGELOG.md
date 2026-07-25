@@ -1,5 +1,21 @@
 # Changelog
 
+## [v3.8.2] - 2026-07-25
+
+### Wrapper release
+
+- **v3.8.2** — maintenance patch; refresh digest-pinned base images for UBI and Debian edge builds. No wrapper, Go, or SDK version changes.
+
+### Embedded skupper-router
+
+- Pin and compile upstream **skupper-router 3.5.1** (unchanged from v3.8.1; separate from wrapper semver).
+
+### CI and release
+
+- **`ci.yml`**: remove Docker GHA cache from the `docker-smoke` job (`cache-from` / `cache-to`).
+- **`Dockerfile`**: refresh digest pins for `ubi9/ubi-minimal` and `ubi9/ubi`.
+- **`Dockerfile.edge`**: refresh digest pins for `debian:trixie` and `debian:trixie-slim`.
+
 ## [v3.8.1] - 2026-07-10
 
 ### Wrapper release
