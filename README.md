@@ -8,8 +8,8 @@ Go wrapper image for **[skupper-router](https://github.com/skupperproject/skuppe
 
 | Component | Version |
 |-----------|---------|
-| Wrapper release | **v3.8.0** |
-| Embedded skupper-router | **3.5.1** (compiled from upstream tag pin) |
+| Wrapper release | **v3.8.3** |
+| Embedded skupper-router | **3.5.2** (compiled from upstream tag pin) |
 
 Edgelet workload label: **`iofog-router`**.
 
