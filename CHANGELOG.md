@@ -1,5 +1,24 @@
 # Changelog
 
+
+## [v3.8.3] - 2026-08-20
+
+### Wrapper release
+
+- **v3.8.3** — security/maintenance patch; Go toolchain **1.26.6** (was 1.26.5) to pick up stdlib fixes (GO-2026-6218, GO-2026-6090, GO-2026-5972, GO-2026-5026). No wrapper change.
+- Bump iofog-go-sdk to **iofog-go-sdk v3.8.3-rc.1**
+
+### Embedded skupper-router
+
+- Pin and compile upstream **skupper-router 3.5.2** (was 3.5.1; separate from wrapper semver).
+
+### CI and release
+
+- **`ci.yml`**, **`release.yml`**, **`govulncheck.yml`**: Go **1.26.6** in workflow env.
+- **`Dockerfile`**, **`Dockerfile.dev`**, **`Dockerfile.edge`**: `golang:1.26.6-alpine` builder image (digest-pinned in prod/edge).
+- **`Dockerfile`**: refresh digest pins for `ubi9/ubi-minimal` and `ubi9/ubi`; compile skupper-router **3.5.2**.
+- **`Dockerfile.edge`**: refresh digest pins for `debian:trixie` and `debian:trixie-slim`; compile skupper-router **3.5.2**.
+
 ## [v3.8.2] - 2026-07-25
 
 ### Wrapper release
