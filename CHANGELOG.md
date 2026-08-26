@@ -1,7 +1,17 @@
 # Changelog
 
+## [v3.8.3-rc.2] - 2026-08-26
 
-## [v3.8.3] - 2026-08-20
+### Wrapper release
+
+- **v3.8.3-rc.2** — security/maintenance RC; bump indirect **`github.com/gorilla/websocket` v1.5.3** (was v1.5.0) to fix GO-2026-6278 (weak PRNG for WebSocket mask key). No wrapper, Go, or SDK version change.
+
+### CI and release
+
+- **`Dockerfile`**: refresh digest pins for `ubi9/ubi-minimal` and `ubi9/ubi`.
+- **`Dockerfile.edge`**: refresh digest pins for `debian:trixie` and `debian:trixie-slim`.
+
+## [v3.8.3-rc.1] - 2026-08-20
 
 ### Wrapper release
 

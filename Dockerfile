@@ -1,5 +1,5 @@
 # registry.access.redhat.com/ubi9/ubi-minimal:latest — pin manifest list digest
-FROM registry.access.redhat.com/ubi9/ubi-minimal@sha256:8eb2830d0936237fc13a1f2f7e45aecf90d69043380ad167fad0343632937f41 AS builder
+FROM registry.access.redhat.com/ubi9/ubi-minimal@sha256:580752f96d36c4132bffd30f9c34865bf4bd87f6aa161c969d117f21732e50f7 AS builder
 
 # upgrade first to avoid fixable vulnerabilities
 # do this in builder as well as in buildee, so builder does not have different pkg versions from buildee image
@@ -40,7 +40,7 @@ RUN if [ "$PLATFORM" = "ppc64le" ]; then tar zxpf /qpid-proton-image.tar.gz -C /
 RUN mkdir /image/licenses && cp ./LICENSE /image/licenses
 
 # registry.access.redhat.com/ubi9/ubi:latest — pin manifest list digest
-FROM registry.access.redhat.com/ubi9/ubi@sha256:5426a8f45e80a07168a30ea24d84f266094b3756624a5508cc53927e6ee39e09 AS packager
+FROM registry.access.redhat.com/ubi9/ubi@sha256:b8c53f907b7ea8934d6bb23b319ca7b5ab567e61a0806ffc80170631cabc7563 AS packager
 
 RUN dnf -y --setopt=install_weak_deps=0 --nodocs \
     --installroot /output install \
@@ -69,7 +69,7 @@ RUN go fmt ./...
 RUN GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath  -ldflags="-s -w" -o bin/router .
 
 # registry.access.redhat.com/ubi9/ubi-minimal:latest — pin manifest list digest
-FROM registry.access.redhat.com/ubi9/ubi-minimal@sha256:8eb2830d0936237fc13a1f2f7e45aecf90d69043380ad167fad0343632937f41 AS tz
+FROM registry.access.redhat.com/ubi9/ubi-minimal@sha256:580752f96d36c4132bffd30f9c34865bf4bd87f6aa161c969d117f21732e50f7 AS tz
 RUN microdnf install -y tzdata && microdnf reinstall -y tzdata
 
 FROM scratch
