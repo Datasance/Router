@@ -21,8 +21,8 @@ github.com/Azure/go-autorest/tracing v0.6.0 h1:TYi4+3m5t6K48TGI9AUdb+IzbnSxvnvUM
 github.com/Azure/go-autorest/tracing v0.6.0/go.mod h1:+vhtPC754Xsa23ID7GlGsrdKBpUA79WCAKPPZVC2DeU=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
-github.com/eclipse-iofog/iofog-go-sdk/v3 v3.9.4 h1:g3MMj3GcP7//30JiKXUTlLA45m1M5ruMfM3b8yX2TSM=
-github.com/eclipse-iofog/iofog-go-sdk/v3 v3.9.4/go.mod h1:D/Lf9DLebaQm6JR30WGzi+o6J9eWVx3p9hHwAgQEFCA=
+github.com/eclipse-iofog/iofog-go-sdk/v3 v3.9.5 h1:8mS6GMfxCAD0rzaucstRb7RhDv701wToUCpLw2kDs9s=
+github.com/eclipse-iofog/iofog-go-sdk/v3 v3.9.5/go.mod h1:PI6xsjNL6C3NfOdw7DMojU4rkiXH6qG1Ov0D5cydh5Q=
 github.com/fortytw2/leaktest v1.3.0 h1:u8491cBMTQ8ft8aeV+adlcytMZylmA5nnwwkRZjI8vw=
 github.com/fortytw2/leaktest v1.3.0/go.mod h1:jDsjWgpAGjm2CA7WthBh/CdZYEPF31XHquHwclZch5g=
 github.com/fsnotify/fsnotify v1.7.0 h1:8JEhPFa5W2WU7YfeZzPNqzMP6Lwt7L2715Ggo0nosvA=

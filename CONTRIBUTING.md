@@ -29,9 +29,9 @@ Do **not** use the legacy **`iofog/merge`** branch — it is abandoned in favor 
 
 ## Development setup
 
-- **Go 1.26.10** (see `go.mod`).
+- **Go 1.26.11** (see `go.mod`).
 - `make test`, `make fmt-check`, `make security-code` before pushing.
-- Local wrapper overlay: `Dockerfile.dev` (upstream `quay.io/skupper/skupper-router:3.5.3` image).
+- Local wrapper overlay: `Dockerfile.dev` (upstream `quay.io/skupper/skupper-router:3.5.4` image).
 
 Module import path is always **`github.com/eclipse-iofog/router`**, even when cloning the Datasance mirror.
 

@@ -1,5 +1,29 @@
 # Changelog
 
+
+## [v3.9.5] - 2026-11-19
+
+### Wrapper release
+
+- **v3.9.5** — align with the component release train. **Go 1.26.11** minimum (was 1.26.10; see `go.mod`). CI, release, and the govulncheck workflow use the same toolchain. No wrapper behavior change.
+
+### SDK and LocalAPI
+
+- **iofog-go-sdk v3.9.5** (`github.com/eclipse-iofog/iofog-go-sdk/v3`) — upgrade from v3.9.4. Same Go 1.26.11 pin; no transitive module change (`golang.org/x/sys` stays **v0.48.0**).
+
+### Embedded skupper-router
+
+- Pin and compile upstream **skupper-router 3.5.4** (was 3.5.3; separate from wrapper semver). Upstream delta since 3.5.3: router metrics attribute-label alignment (#1884, #1885) and the Containerfile/CI pin to Qpid Proton **0.41.1** (#1887). Local builds set `PROTON_VERSION=0.41.1` (was commit `e5d5c2b`). No config, `$management`, launch, or image-layout change.
+
+### CI and release
+
+- **`ci.yml`**, **`release.yml`**, **`govulncheck.yml`**: Go **1.26.11** in workflow env.
+- **`Dockerfile`**, **`Dockerfile.dev`**, **`Dockerfile.edge`**: `golang:1.26.11-alpine` builder image (digest-pinned in prod/edge).
+- **`Dockerfile`**: compile skupper-router **3.5.4** with Proton **0.41.1**; refresh digest pins for `ubi9/ubi-minimal` and `ubi9/ubi` (builder, packager, and tz stages).
+- **`Dockerfile.edge`**: compile skupper-router **3.5.4** with Proton **0.41.1**; refresh digest pins for `debian:trixie` (builder and packager) and `debian:trixie-slim`.
+- **`Dockerfile.dev`**: base image `quay.io/skupper/skupper-router:3.5.4`.
+
+
 ## [v3.9.4] - 2026-10-29
 
 ### Wrapper release

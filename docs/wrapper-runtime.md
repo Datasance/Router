@@ -2,7 +2,7 @@
 
 How the `router` process supervises embedded `skrouterd`, where configuration comes from on Pot/ioFog and on Kubernetes, and what a later config change actually changes in the running router.
 
-This document describes the code in this repository (wrapper release **v3.8.3**, embedded skupper-router **3.5.3**) and the Edgelet client it links (`github.com/eclipse-iofog/iofog-go-sdk/v3` **v3.9.1**).
+This document describes the code in this repository (wrapper release **v3.8.3**, embedded skupper-router **3.5.4**) and the Edgelet client it links (`github.com/eclipse-iofog/iofog-go-sdk/v3` **v3.9.1**).
 
 ## What runs in the container
 

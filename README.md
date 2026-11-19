@@ -2,14 +2,14 @@
 
 [![CI](https://github.com/eclipse-iofog/router/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/eclipse-iofog/router/actions/workflows/ci.yml)
 [![Release](https://github.com/eclipse-iofog/router/actions/workflows/release.yml/badge.svg)](https://github.com/eclipse-iofog/router/actions/workflows/release.yml)
-[![Go](https://img.shields.io/badge/Go-1.26.10-00ADD8?logo=go&logoColor=white)](https://go.dev/)
+[![Go](https://img.shields.io/badge/Go-1.26.11-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 
 Go wrapper image for **[skupper-router](https://github.com/skupperproject/skupper-router)** used by **Eclipse ioFog** and **Datasance PoT** edge fleets. The wrapper supervises embedded **`skrouterd`** with config watch and AMQP hot reload.
 
 | Component | Version |
 |-----------|---------|
 | Wrapper release | **v3.8.3** |
-| Embedded skupper-router | **3.5.3** (compiled from upstream tag pin) |
+| Embedded skupper-router | **3.5.4** (compiled from upstream tag pin) |
 
 Edgelet workload label: **`iofog-router`**.
 
@@ -42,7 +42,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for branch naming and contributor workflo
 
 `s390x` and `ppc64le` are out of scope for the ioFog release manifest.
 
-Local dev overlay: `Dockerfile.dev` (`quay.io/skupper/skupper-router:3.5.1` + wrapper only).
+Local dev overlay: `Dockerfile.dev` (`quay.io/skupper/skupper-router:3.5.4` + wrapper only).
 
 ## Modes
 
